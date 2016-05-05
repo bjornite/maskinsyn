@@ -1,6 +1,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/aruco.hpp>
+#include <opencv2/xfeatures2d.hpp>
 
 using namespace std;
 using namespace cv;
@@ -19,6 +20,8 @@ int main() {
     cv::namedWindow(undistorted_win);
     std::string aruco_win = "Undistorted image with aruco markers";
     cv::namedWindow(aruco_win);
+    std::string keypoints1 = "Undistorted image with keypoints";
+    cv::namedWindow(keypoints1);
 
     //Get image from webcam
     cv::VideoCapture cap{1};
@@ -57,6 +60,18 @@ int main() {
         cv::Mat imageCopy;
         imageUndistorted.copyTo(imageCopy);
 
+        Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
+
+        std::vector<KeyPoint> keypoints_1;
+        detector->detect( imageUndistorted, keypoints_1 );
+
+        //-- Draw keypoints
+        Mat img_keypoints_1; Mat img_keypoints_2;
+        drawKeypoints( imageUndistorted, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+        //-- Show detected (drawn) keypoints
+        imshow(keypoints1, img_keypoints_1 );
+
+
         if(markerIds.size() > 0) {
 
             std::vector<Vec3d> rvecs, tvecs;
@@ -72,15 +87,19 @@ int main() {
             double x = tvecs[0][0];
             //printf("%f\n",x);
             double z = tvecs[0][2];
-
+            //printf("%f\n",z);
             double angle = cvFastArctan(x,z);
 
-            printf("%f\n",angle);
+            //printf("%f\n",angle);
 
             if(angle > 5 && angle < 180) {
                 printf("Kjør til Høyre\n");
             } else if (angle < 355) {
                 printf("Kjør til Venstre\n");
+            } else if (z > 1) {
+                printf("Kjør rett frem\n");
+            } else {
+                printf("stå stille\n");
             }
         }
         imshow(aruco_win,imageCopy);
