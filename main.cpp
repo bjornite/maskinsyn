@@ -22,6 +22,8 @@ int main() {
     cv::namedWindow(aruco_win);
     std::string keypoints1 = "Undistorted image with keypoints";
     cv::namedWindow(keypoints1);
+    std::string keypoints2 = "First image with keypoints";
+    cv::namedWindow(keypoints2);
 
     //Get image from webcam
     cv::VideoCapture cap{1};
@@ -45,6 +47,9 @@ int main() {
     cv::imshow(marker_win, markerImage);
      */
 
+    cv::Mat first_image;
+    cap >> first_image;
+
     while(true) {
         cv::Mat raw_image;
         cap >> raw_image;
@@ -62,14 +67,17 @@ int main() {
 
         Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
 
-        std::vector<KeyPoint> keypoints_1;
+        std::vector<KeyPoint> keypoints_1, keypoints_2;
         detector->detect( imageUndistorted, keypoints_1 );
+        detector->detect( first_image, keypoints_2 );
 
         //-- Draw keypoints
-        Mat img_keypoints_1; Mat img_keypoints_2;
+        Mat img_keypoints_1, img_keypoints_2;
         drawKeypoints( imageUndistorted, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+        drawKeypoints( first_image, keypoints_2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
         //-- Show detected (drawn) keypoints
         imshow(keypoints1, img_keypoints_1 );
+        imshow(keypoints2, img_keypoints_2);
 
 
         if(markerIds.size() > 0) {
