@@ -27,8 +27,14 @@ int main() {
     if (!cap.isOpened()) return -1;
 
 
+    Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
+
+    //initialiserer variabler for forrige bilde og fyller dem med noe fornuftig
     cv::Mat last_image;
+    std::vector<KeyPoint> last_keypoints;
+
     cap >> last_image;
+    detector->detect( last_image, last_keypoints);
 
     cv::Mat base_descriptors;
 
@@ -45,7 +51,6 @@ int main() {
         cv::Mat imageCopy;
         current_image.copyTo(imageCopy);
 
-        Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
 
         std::vector<KeyPoint> current_keypoints;
         detector->detect( current_image, current_keypoints);
@@ -90,7 +95,7 @@ int main() {
         imshow(keypoints2, img_keypoints_2);
 
         last_image = current_image;
-        last_keypoints;
+        last_keypoints = current_keypoints;
 
         int key = cv::waitKey(30);
         if (key == 'q') break;
