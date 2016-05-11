@@ -1,10 +1,11 @@
+#include <cmath>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include "Homography_estimation.h"
 
-using namespace std;
 using namespace cv;
+using namespace std;
 
 const Matx33d Camera_Matrix{632.29863082751251, 0, 319.5, 0, 632.29863082751251, 239.5, 0, 0, 1};
 
@@ -34,24 +35,44 @@ void extract_matching_points(
 {
     matched_pts1.clear();
     matched_pts2.clear();
-    for (int i = 1; i < matches.size(); ++i)
+    for (int i = 0; i < matches.size(); ++i)
     {
         matched_pts1.push_back(keypts1[matches[i].queryIdx].pt);
         matched_pts2.push_back(keypts2[matches[i].trainIdx].pt);
     }
 }
 
+float euclidian_distance(
+        cv::Point2f pt1,
+        cv::Point2f pt2)
+{
+   return sqrt(pow(pt1.x - pt2.x,2) + pow(pt1.y - pt2.y,2));
+}
+
+void mask_stationary_features(
+        const std::vector<cv::Point2f>& matched_pts1,
+        const std::vector<cv::Point2f>& matched_pts2,
+        std::vector<char>& mask)
+{
+    mask.clear();
+    for (int i = 0; i < matched_pts1.size(); i++) {
+        mask.push_back(euclidian_distance(matched_pts1.at(i), matched_pts2.at(i)) > 5.0);
+    }
+}
+
 int main() {
 
     //Set up windows:
-
-    std::string keypoints1 = "Undistorted image with keypoints";
-    cv::namedWindow(keypoints1);
     std::string matches_win = "Matching features";
     cv::namedWindow(matches_win);
 
     //Get image from webcam
+
     cv::VideoCapture cap{1};
+    printf("%f\n",cap.get(CAP_PROP_FPS));
+    cap.set(CV_CAP_PROP_FPS, 5);
+
+    printf("%f\n",cap.get(CAP_PROP_FPS));
     if (!cap.isOpened()) return -1;
 
 
@@ -70,11 +91,11 @@ int main() {
         cv::Mat raw_image;
         cv::Mat raw_image_grayscale;
         cap >> raw_image;
-        cv::cvtColor(raw_image,raw_image_grayscale,cv::COLOR_BGR2GRAY);
+        //cv::cvtColor(raw_image,raw_image_grayscale,cv::COLOR_BGR2GRAY);
 
         cv::Mat current_image; // Will be the undistorted version of the above image.
 
-        cv::undistort(raw_image_grayscale, current_image, Camera_Matrix, Distortion_Coefficients);
+        cv::undistort(raw_image, current_image, Camera_Matrix, Distortion_Coefficients);
 
         cv::Mat imageCopy;
         current_image.copyTo(imageCopy);
@@ -89,27 +110,28 @@ int main() {
         
         //-- Draw keypoints
         cv::Mat feature_vis;
-        cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
-
+        //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
+        std::vector<char> mask;
 
         if (!last_descriptors.empty()) {
-
 
             std::vector<std::vector<cv::DMatch>> matches;
 
             detector->compute(current_image, current_keypoints, current_descriptors);
             matcher.knnMatch(current_descriptors, last_descriptors, matches, 2);
 
-            std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.8);
+            std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.7);
 
-            cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis);
 
             if (good_matches.size() >= 10) {
+
                 std::vector<cv::Point2f> matching_pts1;
                 std::vector<cv::Point2f> matching_pts2;
+
                 extract_matching_points(current_keypoints, last_keypoints,
                                         good_matches, matching_pts1, matching_pts2);
 
+                mask_stationary_features(matching_pts1,matching_pts2,mask);
                 //// Estimate homography in a ransac scheme
                 //cv::Mat is_inlier;
                 //find_homography_ransac(matching_pts1, matching_pts2, is_inlier);
@@ -119,8 +141,9 @@ int main() {
                 //  sample_Point2f(matching_pts1, is_inlier),
                 //  sample_Point2f(matching_pts2, is_inlier));
 
-                cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
+                //cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
             }
+            cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
         }
 
         //-- Show detected (drawn) matches
