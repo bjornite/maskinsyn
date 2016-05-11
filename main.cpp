@@ -47,38 +47,72 @@ int main() {
     cv::imshow(marker_win, markerImage);
      */
 
-    cv::Mat first_image;
-    cap >> first_image;
+    cv::Mat last_image;
+    cap >> last_image;
+
+    cv::Mat base_descriptors;
 
     while(true) {
         cv::Mat raw_image;
         cap >> raw_image;
 
-        cv::Mat imageUndistorted; // Will be the undistorted version of the above image.
+        cv::Mat current_image; // Will be the undistorted version of the above image.
 
-        cv::undistort(raw_image, imageUndistorted, Camera_Matrix, Distortion_Coefficients);
+        cv::undistort(raw_image, current_image, Camera_Matrix, Distortion_Coefficients);
 
-        cv::imshow(undistorted_win, imageUndistorted);
+        cv::imshow(undistorted_win, current_image);
 
-        cv::aruco::detectMarkers(imageUndistorted, dictionary, markerCorners, markerIds);
+        cv::aruco::detectMarkers(current_image, dictionary, markerCorners, markerIds);
 
         cv::Mat imageCopy;
-        imageUndistorted.copyTo(imageCopy);
+        current_image.copyTo(imageCopy);
 
         Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
 
-        std::vector<KeyPoint> keypoints_1, keypoints_2;
-        detector->detect( imageUndistorted, keypoints_1 );
-        detector->detect( first_image, keypoints_2 );
-
+        std::vector<KeyPoint> current_keypoints;
+        detector->detect( current_image, current_keypoints);
+        cv::BFMatcher matcher{detector->defaultNorm()};
+        
         //-- Draw keypoints
         Mat img_keypoints_1, img_keypoints_2;
-        drawKeypoints( imageUndistorted, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-        drawKeypoints( first_image, keypoints_2, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
-        //-- Show detected (drawn) keypoints
+        drawKeypoints( current_image, current_keypoints, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+        drawKeypoints( last_image, last_keypoints, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+
+        if (!last_descriptors.empty())
+        {
+            cv::Mat frame_descriptors;
+            std::vector<std::vector<cv::DMatch>> matches;
+            desc_extractor->compute(gray_frame, frame_keypoints, frame_descriptors);
+            matcher.knnMatch(frame_descriptors, base_descriptors, matches, 2);
+            std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.8);
+
+            cv::drawMatches(current_image, current_keypoints, last_image, base_keypoints, good_matches, feature_vis);
+
+            if (good_matches.size() >= 10)
+            {
+                std::vector<cv::Point2f> matching_pts1;
+                std::vector<cv::Point2f> matching_pts2;
+                extract_matching_points(current_keypoints, last_keypoints,
+                                        good_matches, matching_pts1, matching_pts2);
+
+                //// Estimate homography in a ransac scheme
+                //cv::Mat is_inlier;
+                //find_homography_ransac(matching_pts1, matching_pts2, is_inlier);
+
+                //// Improve homography estimate by normalized DLT
+                //cv::Matx33d H = find_homography_normalized_DLT(
+                //  sample_Point2f(matching_pts1, is_inlier),
+                //  sample_Point2f(matching_pts2, is_inlier));
+
+                cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
+
+
+                //-- Show detected (drawn) keypoints
         imshow(keypoints1, img_keypoints_1 );
         imshow(keypoints2, img_keypoints_2);
 
+        last_image = current_image;
+        last_keypoints;
 
         if(markerIds.size() > 0) {
 
