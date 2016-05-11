@@ -1,6 +1,5 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <opencv2/aruco.hpp>
 #include <opencv2/xfeatures2d.hpp>
 
 using namespace std;
@@ -18,8 +17,6 @@ int main() {
 
     std::string undistorted_win = "Undistorted image";
     cv::namedWindow(undistorted_win);
-    std::string aruco_win = "Undistorted image with aruco markers";
-    cv::namedWindow(aruco_win);
     std::string keypoints1 = "Undistorted image with keypoints";
     cv::namedWindow(keypoints1);
     std::string keypoints2 = "First image with keypoints";
@@ -29,23 +26,6 @@ int main() {
     cv::VideoCapture cap{1};
     if (!cap.isOpened()) return -1;
 
-
-    vector<int> markerIds;
-    vector< vector<Point2f> > markerCorners, rejectedCandidates;
-    //cv::aruco::DetectorParameters parameters;
-    //const cv::Ptr<cv::aruco::DetectorParameters> parameters = aruco::DetectorParameters::create();
-    //cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-
-    /*
-    std::string marker_win = "Marker image";
-    cv::namedWindow("marker_win");
-    cv::Mat markerImage;
-
-    cv::aruco::drawMarker(dictionary, 23, 200, markerImage, 1);
-    imwrite("image.jpg",markerImage);
-    cv::imshow(marker_win, markerImage);
-     */
 
     cv::Mat last_image;
     cap >> last_image;
@@ -62,8 +42,6 @@ int main() {
 
         cv::imshow(undistorted_win, current_image);
 
-        cv::aruco::detectMarkers(current_image, dictionary, markerCorners, markerIds);
-
         cv::Mat imageCopy;
         current_image.copyTo(imageCopy);
 
@@ -78,8 +56,7 @@ int main() {
         drawKeypoints( current_image, current_keypoints, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
         drawKeypoints( last_image, last_keypoints, img_keypoints_2, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
 
-        if (!last_descriptors.empty())
-        {
+        if (!last_descriptors.empty()) {
             cv::Mat frame_descriptors;
             std::vector<std::vector<cv::DMatch>> matches;
             desc_extractor->compute(gray_frame, frame_keypoints, frame_descriptors);
@@ -88,8 +65,7 @@ int main() {
 
             cv::drawMatches(current_image, current_keypoints, last_image, base_keypoints, good_matches, feature_vis);
 
-            if (good_matches.size() >= 10)
-            {
+            if (good_matches.size() >= 10) {
                 std::vector<cv::Point2f> matching_pts1;
                 std::vector<cv::Point2f> matching_pts2;
                 extract_matching_points(current_keypoints, last_keypoints,
@@ -105,6 +81,8 @@ int main() {
                 //  sample_Point2f(matching_pts2, is_inlier));
 
                 cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
+            }
+        }
 
 
                 //-- Show detected (drawn) keypoints
@@ -113,38 +91,6 @@ int main() {
 
         last_image = current_image;
         last_keypoints;
-
-        if(markerIds.size() > 0) {
-
-            std::vector<Vec3d> rvecs, tvecs;
-
-            cv::aruco::estimatePoseSingleMarkers(markerCorners, 0.1952, Camera_Matrix, Distortion_Coefficients, rvecs,
-                                                 tvecs);
-
-            //cv::aruco::drawDetectedMarkers(imageCopy, markerCorners, markerIds);
-            cv::aruco::drawAxis(imageCopy, Camera_Matrix, Distortion_Coefficients, rvecs, tvecs, 0.5);
-
-            //Code for controlling the robot goes here:
-            //henter x-koordinatet til arucomarkeren i kameraets koordinatsystem
-            double x = tvecs[0][0];
-            //printf("%f\n",x);
-            double z = tvecs[0][2];
-            //printf("%f\n",z);
-            double angle = cvFastArctan(x,z);
-
-            //printf("%f\n",angle);
-
-            if(angle > 5 && angle < 180) {
-                printf("Kjør til Høyre\n");
-            } else if (angle < 355) {
-                printf("Kjør til Venstre\n");
-            } else if (z > 1) {
-                printf("Kjør rett frem\n");
-            } else {
-                printf("stå stille\n");
-            }
-        }
-        imshow(aruco_win,imageCopy);
 
         int key = cv::waitKey(30);
         if (key == 'q') break;
