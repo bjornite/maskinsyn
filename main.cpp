@@ -60,6 +60,24 @@ void mask_stationary_features(
     }
 }
 
+
+//Masks matches and returns a vector with the matches corresponding to true entries in the mask
+void get_unmasked_points (
+        const std::vector<cv::DMatch>& matches,
+        const std::vector<char>& mask,
+        std::vector<cv::DMatch>& unmasked_points)
+{
+    if (matches.size() != mask.size()){
+        CV_Error(Error::StsBadSize,"matches and mask must be the same size");
+    }
+    for (int i = 0; i < mask.size(); i++) {
+        if (mask.at(i)) {
+            unmasked_points.push_back(matches.at(i));
+        }
+    }
+}
+
+
 int main() {
 
     //Set up windows:
@@ -69,10 +87,9 @@ int main() {
     //Get image from webcam
 
     cv::VideoCapture cap{1};
-    printf("%f\n",cap.get(CAP_PROP_FPS));
     cap.set(CV_CAP_PROP_FPS, 5);
 
-    printf("%f\n",cap.get(CAP_PROP_FPS));
+    //printf("%f\n",cap.get(CAP_PROP_FPS));
     if (!cap.isOpened()) return -1;
 
 
@@ -112,6 +129,7 @@ int main() {
         cv::Mat feature_vis;
         //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
         std::vector<char> mask;
+        std::vector<DMatch> moving_features;
 
         if (!last_descriptors.empty()) {
 
@@ -132,6 +150,9 @@ int main() {
                                         good_matches, matching_pts1, matching_pts2);
 
                 mask_stationary_features(matching_pts1,matching_pts2,mask);
+
+                get_unmasked_points(good_matches,mask,moving_features);
+
                 //// Estimate homography in a ransac scheme
                 //cv::Mat is_inlier;
                 //find_homography_ransac(matching_pts1, matching_pts2, is_inlier);
@@ -143,7 +164,9 @@ int main() {
 
                 //cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
             }
-            cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
+            //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
+            //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, moving_features, feature_vis);
+            cv::drawKeypoints(current_image,current_keypoints,feature_vis);
         }
 
         //-- Show detected (drawn) matches
