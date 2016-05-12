@@ -7,6 +7,20 @@
 using namespace cv;
 using namespace std;
 
+// Higher value = less pixels (faster)
+const int resize_factor = 2;
+
+// The distance features must move per 1/FRAMERATE second to track
+// movement in percentage of the whole frame size
+const double min_movement_percentage = 0.5;
+
+const int image_width = 640;
+const int image_height = 480;
+
+
+const Size resized_size(image_width / resize_factor, image_height / resize_factor);
+const float min_pixel_movement = ((image_width / resize_factor) / 100 ) * min_movement_percentage;
+
 const Matx33d Camera_Matrix{632.29863082751251, 0, 319.5, 0, 632.29863082751251, 239.5, 0, 0, 1};
 
 const Mat Distortion_Coefficients =
@@ -57,8 +71,9 @@ void mask_stationary_features(
         std::vector<char>& mask)
 {
     mask.clear();
+
     for (int i = 0; i < matched_pts1.size(); i++) {
-        mask.push_back(euclidian_distance(matched_pts1.at(i), matched_pts2.at(i)) > 5.0);
+        mask.push_back(euclidian_distance(matched_pts1.at(i), matched_pts2.at(i)) > min_pixel_movement);
     }
 }
 
@@ -78,6 +93,25 @@ void get_unmasked_keypoints (
             unmasked_keypoints.push_back(keypoints.at(matches.at(i).queryIdx));
         }
     }
+}
+
+// Updates crosshair position to be the mean of the given keypoints
+cv::Point2d calculate_crosshair_position (
+        const std::vector<cv::KeyPoint> &keypoints)
+{
+    double mean_x = 0;
+    double mean_y = 0;
+
+    for (int i = 0; i < keypoints.size(); i++)
+    {
+        mean_x += keypoints.at(i).pt.x;
+        mean_y += keypoints.at(i).pt.y;
+    }
+
+    mean_x /= keypoints.size();
+    mean_y /= keypoints.size();
+
+    return cv::Point2d(mean_x, mean_y);
 }
 
 int main() {
@@ -100,33 +134,44 @@ int main() {
         }
     }
 
-    // Set frame rate to 5
+    // Setting frame rate
     cap.set(CV_CAP_PROP_FPS, 5);
 
     Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
 
-    // Initialiserer variabler for forrige bilde og fyller dem med noe fornuftig
-    cv::Mat last_image;
+    // Current and previous image pointers
+    cv::Mat previous_image, current_image;
+    
     std::vector<KeyPoint> last_keypoints;
     cv::Mat last_descriptors;
 
-    cap >> last_image;
-    detector->detect( last_image, last_keypoints);
-    detector->compute(last_image, last_keypoints, last_descriptors);
+    cap >> previous_image;
+    detector->detect( previous_image, last_keypoints);
+    detector->compute(previous_image, last_keypoints, last_descriptors);
 
+    // Setting up crosshair image
+    cv::Mat crosshair_image;
+    cv::Point2d crosshair_position(0, 0);
+
+    // Main loop
     while(true) {
         cv::Mat raw_image;
-        cv::Mat raw_image_grayscale;
+
         cap >> raw_image;
-        //cv::cvtColor(raw_image,raw_image_grayscale,cv::COLOR_BGR2GRAY);
 
-        cv::Mat current_image; // Will be the undistorted version of the above image.
+        // Undistorting raw_image into current image
+        //cv::undistort(raw_image, current_image, Camera_Matrix, Distortion_Coefficients);
+        //current_image = raw_image;
 
-        cv::undistort(raw_image, current_image, Camera_Matrix, Distortion_Coefficients);
+        // Make it grayscale
+        cv::Mat grayscale_image;
+        cv::cvtColor(raw_image, grayscale_image, cv::COLOR_BGR2GRAY);
 
-        cv::Mat imageCopy;
-        current_image.copyTo(imageCopy);
+        // Make it smaller to save computation power
+        resize(grayscale_image, current_image, resized_size, 0, 0, INTER_LINEAR);
 
+        // Copy image to crosshair image
+        current_image.copyTo(crosshair_image);
 
         std::vector<KeyPoint> current_keypoints;
         detector->detect( current_image, current_keypoints);
@@ -149,9 +194,9 @@ int main() {
             detector->compute(current_image, current_keypoints, current_descriptors);
             matcher.knnMatch(current_descriptors, last_descriptors, matches, 2);
 
-            std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.7);
+            std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.5);
 
-
+            // Only update crosshair position if there is a decent number of matching features
             if (good_matches.size() >= 10) {
 
                 std::vector<cv::Point2f> matching_pts1;
@@ -167,27 +212,30 @@ int main() {
                 // Get the moving features
                 get_unmasked_keypoints(good_matches, mask, current_keypoints, moving_features);
 
-                //// Estimate homography in a ransac scheme
-                //cv::Mat is_inlier;
-                //find_homography_ransac(matching_pts1, matching_pts2, is_inlier);
-
-                //// Improve homography estimate by normalized DLT
-                //cv::Matx33d H = find_homography_normalized_DLT(
-                //  sample_Point2f(matching_pts1, is_inlier),
-                //  sample_Point2f(matching_pts2, is_inlier));
-
-                //cv::Matx33d H = cv::findHomography(matching_pts1, matching_pts2, cv::RANSAC);
+                if (moving_features.size() > 10)
+                {
+                    // Updating crosshair position to be mean of moving features
+                    crosshair_position = calculate_crosshair_position(moving_features);
+                    //printf("%f\n%f\n\n", crosshair_position.x, crosshair_position.y);
+                }
             }
-            //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
-            //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, moving_features, feature_vis);
 
-            cv::drawKeypoints(current_image, moving_features, feature_vis);
+            // Draw moving features
+            cv::drawKeypoints(crosshair_image, moving_features, crosshair_image);
+
+            //cv::drawMatches(current_image, current_keypoints, previous_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
+            //cv::drawMatches(current_image, current_keypoints, previous_image, last_keypoints, moving_features, feature_vis);
         }
 
-        //-- Show detected (drawn) matches
-        imshow(matches_win, feature_vis);
+        // Draw the Crosshair
+        cv::drawMarker(crosshair_image, crosshair_position, Scalar::all(255), cv::MARKER_CROSS, 100, 2, 8);
 
-        last_image = current_image;
+        //-- Show detected (drawn) matches
+        cv::Mat final_image;
+        resize(crosshair_image, final_image, Size(image_width, image_height), 0, 0, INTER_LINEAR);
+        imshow(matches_win, final_image);
+
+        previous_image = current_image;
         last_keypoints = current_keypoints;
         last_descriptors = current_descriptors;
 
