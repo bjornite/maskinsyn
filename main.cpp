@@ -13,7 +13,6 @@ const Mat Distortion_Coefficients =
         (Mat_<double>(5,1) << 0.070528331223347215, 0.26247385180956367, 0, 0, -1.0640942232949715);
 
 
-
 std::vector<cv::DMatch> extract_good_ratio_matches(
         const std::vector<std::vector<cv::DMatch>>& matches, double max_ratio)
 {
@@ -28,6 +27,7 @@ std::vector<cv::DMatch> extract_good_ratio_matches(
     return good_ratio_matches;
 }
 
+// Extracts matched points from matches into keypts1 and 2
 void extract_matching_points(
         const std::vector<cv::KeyPoint>& keypts1, const std::vector<cv::KeyPoint>& keypts2,
         const std::vector<cv::DMatch>& matches,
@@ -42,6 +42,7 @@ void extract_matching_points(
     }
 }
 
+// Returns the euclidian distance between two points in 2D-space
 float euclidian_distance(
         cv::Point2f pt1,
         cv::Point2f pt2)
@@ -49,6 +50,7 @@ float euclidian_distance(
    return sqrt(pow(pt1.x - pt2.x,2) + pow(pt1.y - pt2.y,2));
 }
 
+// Fills a binary mask given the distance between matching points
 void mask_stationary_features(
         const std::vector<cv::Point2f>& matched_pts1,
         const std::vector<cv::Point2f>& matched_pts2,
@@ -61,41 +63,49 @@ void mask_stationary_features(
 }
 
 
-//Masks matches and returns a vector with the matches corresponding to true entries in the mask
-void get_unmasked_points (
+// Masks matches and returns a vector with the matches corresponding to true-entries in the mask
+void get_unmasked_keypoints (
         const std::vector<cv::DMatch>& matches,
         const std::vector<char>& mask,
-        std::vector<cv::DMatch>& unmasked_points)
+        const std::vector<KeyPoint>& keypoints,
+        std::vector<cv::KeyPoint>& unmasked_keypoints)
 {
     if (matches.size() != mask.size()){
         CV_Error(Error::StsBadSize,"matches and mask must be the same size");
     }
     for (int i = 0; i < mask.size(); i++) {
         if (mask.at(i)) {
-            unmasked_points.push_back(matches.at(i));
+            unmasked_keypoints.push_back(keypoints.at(matches.at(i).queryIdx));
         }
     }
 }
 
-
 int main() {
 
-    //Set up windows:
+    // Set up windows:
     std::string matches_win = "Matching features";
     cv::namedWindow(matches_win);
 
-    //Get image from webcam
+    // Get video from webcam or internal camera
+    cv::VideoCapture cap;
+    cap.open(1);
+    if (!cap.isOpened())
+    {
+        cap.open(0);
 
-    cv::VideoCapture cap{1};
+        if (!cap.isOpened())
+        {
+            printf("Could not detect any camera, exiting...");
+            return -1;
+        }
+    }
+
+    // Set frame rate to 5
     cap.set(CV_CAP_PROP_FPS, 5);
-
-    //printf("%f\n",cap.get(CAP_PROP_FPS));
-    if (!cap.isOpened()) return -1;
-
 
     Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
 
-    //initialiserer variabler for forrige bilde og fyller dem med noe fornuftig
+    // Initialiserer variabler for forrige bilde og fyller dem med noe fornuftig
     cv::Mat last_image;
     std::vector<KeyPoint> last_keypoints;
     cv::Mat last_descriptors;
@@ -127,9 +137,10 @@ int main() {
         
         //-- Draw keypoints
         cv::Mat feature_vis;
+
         //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
         std::vector<char> mask;
-        std::vector<DMatch> moving_features;
+        std::vector<KeyPoint> moving_features;
 
         if (!last_descriptors.empty()) {
 
@@ -146,12 +157,15 @@ int main() {
                 std::vector<cv::Point2f> matching_pts1;
                 std::vector<cv::Point2f> matching_pts2;
 
+                // Find matching features
                 extract_matching_points(current_keypoints, last_keypoints,
                                         good_matches, matching_pts1, matching_pts2);
 
-                mask_stationary_features(matching_pts1,matching_pts2,mask);
+                // Mask features that are not moving
+                mask_stationary_features(matching_pts1, matching_pts2, mask);
 
-                get_unmasked_points(good_matches,mask,moving_features);
+                // Get the moving features
+                get_unmasked_keypoints(good_matches, mask, current_keypoints, moving_features);
 
                 //// Estimate homography in a ransac scheme
                 //cv::Mat is_inlier;
@@ -166,7 +180,8 @@ int main() {
             }
             //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
             //cv::drawMatches(current_image, current_keypoints, last_image, last_keypoints, moving_features, feature_vis);
-            cv::drawKeypoints(current_image,current_keypoints,feature_vis);
+
+            cv::drawKeypoints(current_image, moving_features, feature_vis);
         }
 
         //-- Show detected (drawn) matches
