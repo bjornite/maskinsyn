@@ -78,6 +78,8 @@ void get_unmasked_points (
 }
 
 
+
+
 int main() {
 
     //Set up windows:
