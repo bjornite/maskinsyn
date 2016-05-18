@@ -114,6 +114,8 @@ cv::Point2d calculate_crosshair_position (
     return cv::Point2d(mean_x, mean_y);
 }
 
+
+
 int main() {
 
     // Set up windows:
@@ -138,16 +140,16 @@ int main() {
     cap.set(CV_CAP_PROP_FPS, 5);
 
     // Current and previous image pointers
-    cv::Mat previous_image, current_image;
-
-    // Fetch video
-    cap >> previous_image;
-
+    cv::Mat previous_image, current_image, object_vis;
 
     // Initialize feature detector
     Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
     std::vector<KeyPoint> last_keypoints;
     cv::Mat last_descriptors;
+
+    // Fetch video
+    cap >> previous_image;
+    cap >> object_vis;
 
     detector->detect( previous_image, last_keypoints);
     detector->compute(previous_image, last_keypoints, last_descriptors);
@@ -155,6 +157,11 @@ int main() {
     // Setting up crosshair image
     cv::Mat crosshair_image;
     cv::Point2d crosshair_position(0, 0);
+
+    bool saved_object = false;
+    cv::Mat saved_object_descriptors;
+    std::vector<KeyPoint> saved_object_features;
+    cv::Mat object_reference_image;
 
     // Main loop
     while(true) {
@@ -185,14 +192,16 @@ int main() {
         //-- Draw keypoints
         cv::Mat feature_vis;
 
+
         //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
         std::vector<char> mask;
         std::vector<KeyPoint> moving_features;
 
-
+        //Only look for matches if we have some features to compare
         if (!last_descriptors.empty()) {
 
             std::vector<std::vector<cv::DMatch>> matches;
+            std::vector<std::vector<cv::DMatch>> object_matches;
 
             detector->compute(current_image, current_keypoints, current_descriptors);
             matcher.knnMatch(current_descriptors, last_descriptors, matches, 2);
@@ -220,7 +229,31 @@ int main() {
                     // Updating crosshair position to be mean of moving features
                     crosshair_position = calculate_crosshair_position(moving_features);
                     //printf("%f\n%f\n\n", crosshair_position.x, crosshair_position.y);
+
+                    //Compute descriptors for the moving features. This can be optimized by looking them up. Currently computes these twice.
+                    if(!saved_object) {
+                        detector->compute(current_image, moving_features, saved_object_descriptors);
+                        saved_object_features = moving_features;
+                        current_image.copyTo(object_reference_image);
+                        saved_object = true;
+                        printf("Object saved!\n");
+                        printf("Saved %d features\n",(int)moving_features.size());
+                    }
                 }
+            }
+
+            if (saved_object) {
+                //look for saved features in the image
+                matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches,3);
+
+                std::vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches,0.7);
+
+                if (good_object_matches.size() > 0) {
+                    cv::drawMatches(current_image,current_keypoints,object_reference_image,saved_object_features,good_object_matches,object_vis);
+                    printf("found object!\n");
+                }
+                //Draw them
+                //Update the crosshair position
             }
 
             // Draw moving features
@@ -230,13 +263,15 @@ int main() {
             //cv::drawMatches(current_image, current_keypoints, previous_image, last_keypoints, moving_features, feature_vis);
         }
 
+
         // Draw the Crosshair
         cv::drawMarker(crosshair_image, crosshair_position, Scalar::all(255), cv::MARKER_CROSS, 100, 2, 8);
 
         //-- Show detected (drawn) matches
         cv::Mat final_image;
         resize(crosshair_image, final_image, Size(image_width, image_height), 0, 0, INTER_LINEAR);
-        imshow(matches_win, final_image);
+        //imshow(matches_win, final_image);
+        imshow(matches_win,object_vis);
 
         previous_image = current_image;
         last_keypoints = current_keypoints;
@@ -244,6 +279,6 @@ int main() {
 
         int key = cv::waitKey(30);
         if (key == 'q') break;
+        if (key == 'r') saved_object = false;
     }
-
 }
