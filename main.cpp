@@ -8,7 +8,7 @@ using namespace cv;
 using namespace std;
 
 // Higher value = less pixels (faster)
-const int resize_factor = 2;
+const int resize_factor = 1;
 
 // The distance features must move per 1/FRAMERATE second to track
 // movement in percentage of the whole frame size
@@ -16,7 +16,6 @@ const double min_movement_percentage = 0.5;
 
 const int image_width = 640;
 const int image_height = 480;
-
 
 const Size resized_size(image_width / resize_factor, image_height / resize_factor);
 const float min_pixel_movement = ((image_width / resize_factor) / 100 ) * min_movement_percentage;
@@ -28,7 +27,8 @@ const Mat Distortion_Coefficients =
 
 
 std::vector<cv::DMatch> extract_good_ratio_matches(
-        const std::vector<std::vector<cv::DMatch>>& matches, double max_ratio)
+        const std::vector<std::vector<cv::DMatch>>& matches,
+        double max_ratio)
 {
     std::vector<cv::DMatch> good_ratio_matches;
 
@@ -137,15 +137,18 @@ int main() {
     // Setting frame rate
     cap.set(CV_CAP_PROP_FPS, 5);
 
-    Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
-
     // Current and previous image pointers
     cv::Mat previous_image, current_image;
-    
+
+    // Fetch video
+    cap >> previous_image;
+
+
+    // Initialize feature detector
+    Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
     std::vector<KeyPoint> last_keypoints;
     cv::Mat last_descriptors;
 
-    cap >> previous_image;
     detector->detect( previous_image, last_keypoints);
     detector->compute(previous_image, last_keypoints, last_descriptors);
 
@@ -164,11 +167,11 @@ int main() {
         //current_image = raw_image;
 
         // Make it grayscale
-        cv::Mat grayscale_image;
-        cv::cvtColor(raw_image, grayscale_image, cv::COLOR_BGR2GRAY);
+        //cv::Mat grayscale_image;
+        //cv::cvtColor(raw_image, grayscale_image, cv::COLOR_BGR2GRAY);
 
-        // Make it smaller to save computation power
-        resize(grayscale_image, current_image, resized_size, 0, 0, INTER_LINEAR);
+        // Make image smaller to save computation power
+        resize(raw_image, current_image, resized_size, 0, 0, INTER_LINEAR);
 
         // Copy image to crosshair image
         current_image.copyTo(crosshair_image);
@@ -177,7 +180,6 @@ int main() {
         detector->detect( current_image, current_keypoints);
 
         cv::Mat current_descriptors;
-
         cv::BFMatcher matcher{detector->defaultNorm()};
         
         //-- Draw keypoints
@@ -186,6 +188,7 @@ int main() {
         //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
         std::vector<char> mask;
         std::vector<KeyPoint> moving_features;
+
 
         if (!last_descriptors.empty()) {
 
