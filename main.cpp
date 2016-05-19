@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <math.h>
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include "Homography_estimation.h"
@@ -8,23 +9,27 @@ using namespace cv;
 using namespace std;
 
 // Higher value = less pixels (faster)
-const int resize_factor = 1;
+const int RESIZE_FACTOR = 2;
 
 // The distance features must move per 1/FRAMERATE second to track
 // movement in percentage of the whole frame size
-const double min_movement_percentage = 0.5;
+const double MIN_MOVEMENT_THRESHOLD = 1;
+
+// This factor multiplied with the mean movement vector length gives the euclidian distance threshold
+// for features to count as part of the tracked object
+// Lower means strickter, a good value is between 0.2 and 0.5
+const float MOVEMENT_VECTOR_SIMILARITY_THRESHOLD = 0.3;
 
 const int image_width = 640;
 const int image_height = 480;
 
-const Size resized_size(image_width / resize_factor, image_height / resize_factor);
-const float min_pixel_movement = ((image_width / resize_factor) / 100 ) * min_movement_percentage;
+const Size resized_size(image_width / RESIZE_FACTOR, image_height / RESIZE_FACTOR);
+const float min_pixel_movement = ((image_width / RESIZE_FACTOR) / 100 ) * MIN_MOVEMENT_THRESHOLD;
 
-const Matx33d Camera_Matrix{632.29863082751251, 0, 319.5, 0, 632.29863082751251, 239.5, 0, 0, 1};
+// x1, x2, y1, y2
+int object_boundary[4];
 
-const Mat Distortion_Coefficients =
-        (Mat_<double>(5,1) << 0.070528331223347215, 0.26247385180956367, 0, 0, -1.0640942232949715);
-
+cv::Point2d drawed_mean_vector;
 
 std::vector<cv::DMatch> extract_good_ratio_matches(
         const std::vector<std::vector<cv::DMatch>>& matches,
@@ -43,9 +48,11 @@ std::vector<cv::DMatch> extract_good_ratio_matches(
 
 // Extracts matched points from matches into keypts1 and 2
 void extract_matching_points(
-        const std::vector<cv::KeyPoint>& keypts1, const std::vector<cv::KeyPoint>& keypts2,
+        const std::vector<cv::KeyPoint>& keypts1,
+        const std::vector<cv::KeyPoint>& keypts2,
         const std::vector<cv::DMatch>& matches,
-        std::vector<cv::Point2f>& matched_pts1, std::vector<cv::Point2f>& matched_pts2)
+        std::vector<cv::Point2f>& matched_pts1,
+        std::vector<cv::Point2f>& matched_pts2)
 {
     matched_pts1.clear();
     matched_pts2.clear();
@@ -77,6 +84,58 @@ void mask_stationary_features(
     }
 }
 
+// Updates a binary mask by removing hipsters (points moving differently from the mean)
+void mask_false_moving_features (
+        const std::vector<cv::Point2f>& matched_pts1,
+        const std::vector<cv::Point2f>& matched_pts2,
+        std::vector<char>& mask)
+{
+    // Find mean vector
+    float direction[2] = {0, 0};
+    int unmasked_cnt = 0;
+
+    // Only use non-masked keypoints
+    for (int i = 0; i < matched_pts1.size(); i++)
+    {
+        if (mask.at(i) == true) {
+            direction[0] += matched_pts2.at(i).x - matched_pts1.at(i).x;
+            direction[1] += matched_pts2.at(i).y - matched_pts1.at(i).y;
+            unmasked_cnt++;
+        }
+
+    }
+
+    direction[0] /= unmasked_cnt;
+    direction[1] /= unmasked_cnt;
+
+    cv::Point2d mean_vector(direction[0], direction[1]);
+    drawed_mean_vector = mean_vector;
+    float mean_direction = atan2f(direction[1], direction[0]) * (180 / M_PI);
+    //printf("Mean angle: %d\n", (int)mean_direction);
+
+    // Find minimum alloved euclidian distance from the mean vector
+    float mean_vector_length = sqrt(pow(direction[0], 2) + pow(direction[1], 2));
+    float minimum_distance = mean_vector_length * MOVEMENT_VECTOR_SIMILARITY_THRESHOLD;
+
+    // Mask keypoints with euclidian distance from mean greater than MOVEMENT_VECTOR_SIMILARITY_THRESHOLD
+    for (int i = 0; i < matched_pts1.size(); i++)
+    {
+        // Only look at non-masked keypoints
+        if (mask.at(i) == true) {
+            // Create vector from point1 to point2
+            int x = matched_pts2.at(i).x - matched_pts1.at(i).x;
+            int y = matched_pts2.at(i).y - matched_pts1.at(i).y;
+            cv::Point2d p(x, y);
+            float a = euclidian_distance(p, mean_vector);
+            float b = minimum_distance;
+
+            // Mask points with greater euclidian distance to mean vector than threshold
+            if (euclidian_distance(p, mean_vector) > minimum_distance) {
+                mask.at(i) = false;
+            }
+        }
+    }
+}
 
 // Masks matches and returns a vector with the matches corresponding to true-entries in the mask
 void get_unmasked_keypoints (
@@ -114,7 +173,29 @@ cv::Point2d calculate_crosshair_position (
     return cv::Point2d(mean_x, mean_y);
 }
 
+// Updates the object boundary (rectangle)
+void update_object_boundary (
+     int object_boundary[],
+     vector<KeyPoint>& keyPoints)
+{
+    int minX = keyPoints.at(0).pt.x;
+    int maxX = keyPoints.at(0).pt.x;
+    int minY = keyPoints.at(0).pt.y;
+    int maxY = keyPoints.at(0).pt.y;
 
+    for (int i = 0; i < keyPoints.size(); i++)
+    {
+        if (keyPoints.at(i).pt.x < minX) minX = keyPoints.at(i).pt.x;
+        if (keyPoints.at(i).pt.x > maxX) maxX = keyPoints.at(i).pt.x;
+        if (keyPoints.at(i).pt.y < minY) minY = keyPoints.at(i).pt.y;
+        if (keyPoints.at(i).pt.y > maxY) maxY = keyPoints.at(i).pt.y;
+    }
+
+    object_boundary[0] = minX;
+    object_boundary[1] = maxX;
+    object_boundary[2] = minY;
+    object_boundary[3] = maxY;
+}
 
 int main() {
 
@@ -144,20 +225,29 @@ int main() {
 
     // Initialize feature detector
     Ptr<cv::xfeatures2d::SURF> detector = cv::xfeatures2d::SURF::create(400);
-    std::vector<KeyPoint> last_keypoints;
-    cv::Mat last_descriptors;
+    std::vector<KeyPoint> previous_keypoints;
+    cv::Mat previous_descriptors;
 
     // Fetch video
     cap >> previous_image;
     cap >> object_vis;
 
-    detector->detect( previous_image, last_keypoints);
-    detector->compute(previous_image, last_keypoints, last_descriptors);
+    // Find keypoints and their descriptors for the first image
+    detector->detect( previous_image, previous_keypoints);
+    detector->compute(previous_image, previous_keypoints, previous_descriptors);
 
-    // Setting up crosshair image
+    // Debug
+    cv::Mat row = previous_descriptors.row(0);
+
+    // Set up crosshair image
     cv::Mat crosshair_image;
     cv::Point2d crosshair_position(0, 0);
 
+    // Set up rectangle
+    cv::Point2d rectangle_pt1;
+    cv::Point2d rectangle_pt2;
+
+    // The model of the object
     bool saved_object = false;
     cv::Mat saved_object_descriptors;
     std::vector<KeyPoint> saved_object_features;
@@ -165,17 +255,10 @@ int main() {
 
     // Main loop
     while(true) {
+
+        // Fetch video stream
         cv::Mat raw_image;
-
         cap >> raw_image;
-
-        // Undistorting raw_image into current image
-        //cv::undistort(raw_image, current_image, Camera_Matrix, Distortion_Coefficients);
-        //current_image = raw_image;
-
-        // Make it grayscale
-        //cv::Mat grayscale_image;
-        //cv::cvtColor(raw_image, grayscale_image, cv::COLOR_BGR2GRAY);
 
         // Make image smaller to save computation power
         resize(raw_image, current_image, resized_size, 0, 0, INTER_LINEAR);
@@ -190,21 +273,20 @@ int main() {
         cv::BFMatcher matcher{detector->defaultNorm()};
         
         //-- Draw keypoints
-        cv::Mat feature_vis;
-
-
+        //cv::Mat feature_vis;
         //cv::drawKeypoints(current_image, current_keypoints, feature_vis, cv::Scalar{0,255,0});
+
         std::vector<char> mask;
-        std::vector<KeyPoint> moving_features;
+        std::vector<KeyPoint> moving_keypoints;
 
         //Only look for matches if we have some features to compare
-        if (!last_descriptors.empty()) {
+        if (!previous_descriptors.empty()) {
 
             std::vector<std::vector<cv::DMatch>> matches;
             std::vector<std::vector<cv::DMatch>> object_matches;
 
             detector->compute(current_image, current_keypoints, current_descriptors);
-            matcher.knnMatch(current_descriptors, last_descriptors, matches, 2);
+            matcher.knnMatch(current_descriptors, previous_descriptors, matches, 2);
 
             std::vector<cv::DMatch> good_matches = extract_good_ratio_matches(matches, 0.5);
 
@@ -215,67 +297,98 @@ int main() {
                 std::vector<cv::Point2f> matching_pts2;
 
                 // Find matching features
-                extract_matching_points(current_keypoints, last_keypoints,
+                extract_matching_points(current_keypoints, previous_keypoints,
                                         good_matches, matching_pts1, matching_pts2);
 
                 // Mask features that are not moving
                 mask_stationary_features(matching_pts1, matching_pts2, mask);
 
+                // Mask features that do not move the same way as the mean
+                mask_false_moving_features(matching_pts2, matching_pts1, mask);
+
                 // Get the moving features
-                get_unmasked_keypoints(good_matches, mask, current_keypoints, moving_features);
+                get_unmasked_keypoints(good_matches, mask, current_keypoints, moving_keypoints);
 
-                if (moving_features.size() > 10)
+                // Detected moving object!
+                if (moving_keypoints.size() > 10)
                 {
-                    // Updating crosshair position to be mean of moving features
-                    crosshair_position = calculate_crosshair_position(moving_features);
-                    //printf("%f\n%f\n\n", crosshair_position.x, crosshair_position.y);
+                    // Detect keypoint direction
 
-                    //Compute descriptors for the moving features. This can be optimized by looking them up. Currently computes these twice.
+
+                    // Updating crosshair position to be mean of moving features
+                    crosshair_position = calculate_crosshair_position(moving_keypoints);
+
+                    update_object_boundary(object_boundary, moving_keypoints);
+                    rectangle_pt1 = cv::Point2d(object_boundary[0], object_boundary[2]); // x1, y1
+                    rectangle_pt2 = cv::Point2d(object_boundary[1], object_boundary[3]); // x2, y2
+
+                    // Compute descriptors for the moving features. This can be optimized by looking them up. Currently computes these twice.
                     if(!saved_object) {
-                        detector->compute(current_image, moving_features, saved_object_descriptors);
-                        saved_object_features = moving_features;
+                        detector->compute(current_image, moving_keypoints, saved_object_descriptors);
+                        saved_object_features = moving_keypoints;
                         current_image.copyTo(object_reference_image);
                         saved_object = true;
                         printf("Object saved!\n");
-                        printf("Saved %d features\n",(int)moving_features.size());
+                        printf("Saved %d features\n", (int)moving_keypoints.size());
                     }
+                    else
+                    {
+                        // Identify new features from object boundary
+
+                    }
+                }
+                else
+                {
+                    // DEBUG
+                    drawed_mean_vector.x = 0;
+                    drawed_mean_vector.y = 0;
                 }
             }
 
             if (saved_object) {
                 //look for saved features in the image
-                matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches,3);
+                matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches, 3);
 
-                std::vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches,0.7);
+                std::vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches, 0.7);
 
                 if (good_object_matches.size() > 0) {
-                    cv::drawMatches(current_image,current_keypoints,object_reference_image,saved_object_features,good_object_matches,object_vis);
-                    printf("found object!\n");
+                    cv::drawMatches(current_image, current_keypoints, object_reference_image, saved_object_features, good_object_matches, object_vis);
+                    //printf("found object!\n");
                 }
                 //Draw them
                 //Update the crosshair position
             }
 
             // Draw moving features
-            cv::drawKeypoints(crosshair_image, moving_features, crosshair_image);
+            cv::drawKeypoints(crosshair_image, moving_keypoints, crosshair_image);
 
-            //cv::drawMatches(current_image, current_keypoints, previous_image, last_keypoints, good_matches, feature_vis,-1,-1,mask);
-            //cv::drawMatches(current_image, current_keypoints, previous_image, last_keypoints, moving_features, feature_vis);
+            //cv::drawMatches(current_image, current_keypoints, previous_image, previous_keypoints, good_matches, feature_vis,-1,-1,mask);
+            //cv::drawMatches(current_image, current_keypoints, previous_image, previous_keypoints, moving_keypoints, feature_vis);
         }
 
-
         // Draw the Crosshair
-        cv::drawMarker(crosshair_image, crosshair_position, Scalar::all(255), cv::MARKER_CROSS, 100, 2, 8);
+        cv::drawMarker(crosshair_image, crosshair_position, Scalar::all(255), cv::MARKER_CROSS, 100, 1, 8);
+        cv::rectangle(crosshair_image, rectangle_pt1, rectangle_pt2, Scalar::all(255), 1);
 
         //-- Show detected (drawn) matches
         cv::Mat final_image;
+
+        // DEBUG
+        cv::arrowedLine(crosshair_image,
+                        cv::Point2d((image_width / RESIZE_FACTOR) / 2, (image_height / RESIZE_FACTOR) / 2),
+                        cv::Point2d((image_width / RESIZE_FACTOR) / 2 + drawed_mean_vector.x,
+                                    (image_height / RESIZE_FACTOR) / 2 + drawed_mean_vector.y),
+                        cv::Scalar(0, 0, 255), 1);
+
+
         resize(crosshair_image, final_image, Size(image_width, image_height), 0, 0, INTER_LINEAR);
-        //imshow(matches_win, final_image);
-        imshow(matches_win,object_vis);
+        //resize(object_vis, final_image, Size(image_width*4, image_height*2), 0, 0, INTER_LINEAR);
+        //imshow(matches_win, object_vis);
+        imshow(matches_win, final_image);
 
         previous_image = current_image;
-        last_keypoints = current_keypoints;
-        last_descriptors = current_descriptors;
+        previous_keypoints = current_keypoints;
+        previous_descriptors = current_descriptors;
 
         int key = cv::waitKey(30);
         if (key == 'q') break;
