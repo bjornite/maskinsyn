@@ -5,7 +5,8 @@ find_package(OpenCV 3 REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-set(SOURCE_FILES main.cpp Moving_object_tracker.cpp Moving_object_tracker.h)
+set(SOURCE_FILES main.cpp Moving_object_tracker.cpp Moving_object_tracker.h Image_segmentation_classifier.cpp Image_segmentation_classifier.h)
+
 add_executable(Maskinsyn ${SOURCE_FILES})
 include_directories($(OPENCV_INCLUDE_DIRS))
 
