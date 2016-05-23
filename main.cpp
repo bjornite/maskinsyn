@@ -21,8 +21,18 @@ const float MOVEMENT_VECTOR_SIMILARITY_THRESHOLD = 0.3;
 int main() {
 
     // Set up windows:
+    std::string feature_window = "Detected features";
+    cv::namedWindow(feature_window);
+    cv::moveWindow(feature_window, 0, 0);
+
     std::string result_window = "Object tracker";
     cv::namedWindow(result_window);
+    cv::moveWindow(result_window, 0, 0);
+
+    std::string result_window2 = "New features";
+    cv::namedWindow(result_window2);
+    cv::moveWindow(result_window2, 1300, 0);
+
 
     // Get video from webcam or internal camera
     cv::VideoCapture cap;
@@ -42,19 +52,25 @@ int main() {
     cap.set(CV_CAP_PROP_FPS, 5);
 
     cv::Mat raw_image, output_image;
-    Moving_object_tracker tracker(400, 10, 1, 0.3, 2);
+    Moving_object_tracker tracker(400, 10, 10, 0.3, 2);
 
     // Main loop
     while (true) {
         // Fetch video stream
         cap >> raw_image;
 
-        tracker.track(raw_image, output_image);
+        cv::Mat feature_image, outputImage2;
 
+        tracker.track(raw_image, feature_image, output_image, outputImage2);
+
+        imshow(feature_window, feature_image);
         imshow(result_window, output_image);
+        imshow(result_window2, outputImage2);
+
 
         int key = cv::waitKey(30);
         if (key == 'q') break;
         if (key == 'r') tracker.reset();
+        if (key == 'm') tracker.switch_mode();
     }
 }

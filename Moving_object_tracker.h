@@ -15,10 +15,6 @@ class Moving_object_tracker {
     // Higher value = less pixels (faster)
     int resize_factor;
 
-    // The distance features must move per 1/FRAMERATE second to track
-    // movement in percentage of the whole frame size
-    float min_movement_threshold;
-
     // This factor multiplied with the mean movement vector length gives the euclidian distance threshold
     // for features to count as part of the tracked object
     // Lower means stricter, a good value is between 0.2 and 0.5
@@ -28,17 +24,22 @@ class Moving_object_tracker {
     const int image_height = 480;
 
     cv::Size resized_image_size;
-    float min_pixel_movement;
 
     int minimum_matching_features;
+    int minimum_moving_features;
 
     // x1, x2, y1, y2
     int object_boundary[4];
 
     cv::Point2d drawn_mean_vector;
 
-    // Current and previous image pointers
-    cv::Mat previous_image, current_image, object_vis;
+    // Previous image pointer
+    cv::Mat previous_image;
+
+    // Detector and descriptors
+    cv::Ptr<cv::xfeatures2d::SURF> detector;
+    vector<cv::KeyPoint> previous_keypoints;
+    cv::Mat previous_descriptors;
 
     // Set up crosshair image
     cv::Mat crosshair_image;
@@ -48,23 +49,28 @@ class Moving_object_tracker {
     cv::Point2d rectangle_pt1;
     cv::Point2d rectangle_pt2;
 
+    // Previous rectangle keypoints and descriptors
+    vector<cv::KeyPoint> previous_rectangle_keypoints;
+    cv::Mat previous_rectangle_descriptors;
+
     // The model of the object
     bool saved_object = false;
     cv::Mat saved_object_descriptors;
-    vector<cv::KeyPoint> saved_object_features;
-    cv::Mat object_reference_image;
 
-    cv::Ptr<cv::xfeatures2d::SURF> detector;
-    vector<cv::KeyPoint> previous_keypoints;
-    cv::Mat previous_descriptors;
+    // Additional descriptors
+    int next_descriptor_to_overwrite = 0;
+    cv::Mat new_object_descriptors;
 
+    // Object size, x, y in pixels
+    int object_size[2];
 
+    int mode = 0;
 
 public:
     Moving_object_tracker (
             int max_keypoints = 400,
             int minimum_matching_features = 10,
-            float min_movement_threshold = 1,
+            int minimum_moving_features = 10,
             float movement_vector_similarity_threshold = 0.3,
             int resize_factor = 1);
 
@@ -83,10 +89,15 @@ public:
             cv::Point2f pt1,
             cv::Point2f pt2);
 
+    bool point_is_within_rectangle (
+            cv::Point2f
+    );
+
     void mask_stationary_features (
             const vector<cv::Point2f>& matched_pts1,
             const vector<cv::Point2f>& matched_pts2,
-            vector<char>& mask);
+            vector<char>& mask,
+            const int min_pixel_movement_percentage);
 
     void mask_false_moving_features (
             const vector<cv::Point2f>& matched_pts1,
@@ -99,6 +110,21 @@ public:
             const vector<cv::KeyPoint>& keypoints,
             vector<cv::KeyPoint>& unmasked_keypoints);
 
+    void get_matching_keypoints (
+            const vector<cv::DMatch>& matches,
+            const vector<cv::KeyPoint>& keypoints,
+            vector<cv::KeyPoint>& matching_keypoints);
+
+    void add_new_keypoints_to_model (
+            const vector<cv::KeyPoint> &keypoints,
+            const cv::Mat &descriptors);
+
+    void get_rectangle_keypoints_and_descriptors (
+            const vector<cv::KeyPoint>& image_keypoints,
+            const cv::Mat& image_descriptors,
+            vector<cv::KeyPoint>& rectangle_keypoints,
+            cv::Mat& rectangle_descriptors);
+
     cv::Point2d calculate_crosshair_position (
             const vector<cv::KeyPoint> &keypoints);
 
@@ -108,10 +134,14 @@ public:
 
     void track (
             cv::Mat& inputImage,
-            cv::Mat& outputImage);
+            cv::Mat& featureImage,
+            cv::Mat& outputImage,
+            cv::Mat& outputImage2);
 
     // Resets the object model
     void reset ();
+
+    void switch_mode ();
 };
 
 #endif //MASKINSYN_MOVING_OBJECT_DETECTOR_H
