@@ -1,10 +1,13 @@
 //
 // Created by bjornivar on 19.05.16.
 //
-
 #include "Image_segmentation_classifier.h"
 
-Image_segmentation_classifier::Image_segmentation_classifier(){
+Image_segmentation_classifier::Image_segmentation_classifier(double MAX_MAHALANOBIS_DISTANCE)  {
+    this->MAX_MAHALANOBIS_DISTANCE = MAX_MAHALANOBIS_DISTANCE;
+    refinement_iterations = 1;
+    refinement_size = 1;
+    trained = false;
 }
 
 /*
@@ -13,53 +16,172 @@ static cv::Ptr<Image_segmentation_classifier> Image_segmentation_classifier::cre
 }
  */
 
-void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat & dst_image) {
+void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
 
     //Convert image to LAB color space and 64-bit float
-    cv::Mat image_lab,image_lab_64;
+    cv::Mat image_lab, image_lab_64;
 
-    cv::cvtColor(image,image_lab,CV_BGR2Lab);
-    image_lab.convertTo(image_lab_64,CV_64FC3);
-
+    cv::cvtColor(image, image_lab, CV_BGR2Lab);
+    image_lab.convertTo(image_lab_64, CV_64FC3);
+    //image_lab_64.convertTo(dst_image,CV_8UC3);
 
     //Rectangle stuff:
     cv::Mat reference_rectangle;
 
     cv::Rect myROI(280, 350, 80, 80);
-    cv::Point2d seedPoint(320,240);
 
-    cv::rectangle(image_lab_64,myROI,2,0);
 
-    reference_rectangle = image_lab(myROI).clone();
+    reference_rectangle = image_lab_64(myROI).clone();
 
-    //Create samples
-    cv::Mat samples = reference_rectangle.reshape(1, reference_rectangle.rows*reference_rectangle.cols).t();
-    cv::Mat samples_64;
-    samples.convertTo(samples_64,CV_64FC3);
+    //Train the model
+    if(!trained) {
+        train(reference_rectangle);
+    }
 
-    //Create gaussian model of reference rectangle
-    cv::calcCovarMatrix(samples_64,covariance_matrix,mean,CV_COVAR_COLS + CV_COVAR_NORMAL, CV_64FC3);
-    cv::invert(covariance_matrix,inv_covariance_matrix);
+    if (trained) {
 
-    //Set the mahalanobis threshold
-    double mahalanobis_threshold = 0.2;
+        cv::Mat mask = mahalanobis_distance_for_each_pixel(image_lab_64);
+        cv::Mat opened_mask = refineMask(mask);
 
-    //Color the pixels that are within the bounds of the model
-    image_lab_64.forEach<cv::Point3_<double>>([this,mahalanobis_threshold](cv::Point3_<double> &p, const int * position) -> void {
+        calculateCrosshairPosition(mask);
+
+        drawMask(image_lab,opened_mask);
+    }
+
+    char text1[40];
+    char text2[40];
+    char text3[40];
+    sprintf(text1, "refinement iterations: %d", refinement_iterations);
+    sprintf(text2, "refinement size: %d", refinement_size);
+    sprintf(text3, "Max M distance: %.3f", MAX_MAHALANOBIS_DISTANCE);
+    cv::putText(image_lab, text1, cv::Point(4, 20), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
+    cv::putText(image_lab, text2, cv::Point(4, 40), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
+    cv::putText(image_lab, text3, cv::Point(4, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
+
+    cv::rectangle(image_lab, myROI, 2, 0);
+    //printf("%.1f,%.1f\n",crossHairPosition.x,crossHairPosition.y);
+    cv::drawMarker(image_lab, crossHairPosition, cv::Scalar::all(0), cv::MARKER_CROSS, 100, 1, 8);
+    //cv::cvtColor(image_lab,dst_image,CV_Lab2BGR);
+    image_lab.copyTo(dst_image);
+}
+
+void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
+    image.forEach<cv::Point3_<double>>([](cv::Point3_<double> &p, const int * position) -> void {
+        p.x = sizeof(double) * rand();
+    });
+}
+
+
+void Image_segmentation_classifier::drawMask(cv::Mat image, cv::Mat mask) {
+
+    image.forEach<cv::Point3_<char>>([this,&mask,&image](cv::Point3_<char> &p, const int * position) -> void {
 
         cv::Mat p_as_matrix;
         p_as_matrix.push_back(p.x);
         p_as_matrix.push_back(p.y);
         p_as_matrix.push_back(p.z);
 
-        if(cv::Mahalanobis(p_as_matrix,mean,inv_covariance_matrix) < mahalanobis_threshold) {
-            p.y = 255;
+        if(mask.at<uchar>(position) == 255) {
+            p.y = (char)255;
+        };
+    });
+}
+
+void Image_segmentation_classifier::calculateCrosshairPosition(cv::Mat mask) {
+
+    int x = 0;
+    int y = 0;
+    int counter = 0;
+
+    mask.forEach<uchar>([this,&mask,&counter,&x,&y](uchar p,const int position[]) -> void {
+        if(p == 255) {
+            x += position[1];
+            y += position[0];
+            counter++;
         };
     });
 
-    image_lab_64.convertTo(dst_image,CV_8UC3);
+    if (counter > 0) {
+        crossHairPosition.x = x / counter;
+        crossHairPosition.y = y / counter;
+    }
+
 }
 
-void Image_segmentation_classifier::train(cv::Mat samples) {
+void Image_segmentation_classifier::train(cv::Mat reference_rectangle) {
 
+    //normalizeL(reference_rectangle);
+
+    //reshape image to a vector of pixels
+    cv::Mat samples = reference_rectangle.reshape(1,reference_rectangle.rows*reference_rectangle.cols).t();
+
+    //Create gaussian model of reference rectangle
+    cv::calcCovarMatrix(samples,covariance_matrix,mean,CV_COVAR_COLS + CV_COVAR_NORMAL, CV_64FC3);
+    cv::invert(covariance_matrix,inv_covariance_matrix);
+    trained = true;
+}
+
+cv::Mat Image_segmentation_classifier::mahalanobis_distance_for_each_pixel(cv::Mat image_lab_64) {
+
+    cv::Mat mask = cv::Mat::zeros(image_lab_64.size(),CV_8U);
+
+    //Color the pixels that are within the bounds of the model
+    image_lab_64.forEach<cv::Point3_<double>>([this,&mask](cv::Point3_<double> &p, const int position[]) -> void {
+
+        cv::Mat p_as_matrix;
+        p_as_matrix.push_back(p.x);
+        p_as_matrix.push_back(p.y);
+        p_as_matrix.push_back(p.z);
+
+        if(cv::Mahalanobis(p_as_matrix,mean,inv_covariance_matrix) < MAX_MAHALANOBIS_DISTANCE) {
+            //p.y = 255;
+            mask.at<uchar>(position[0],position[1]) = 255;
+        };
+    });
+    return mask;
+}
+
+cv::Mat Image_segmentation_classifier::refineMask(cv::Mat mask) {
+
+    cv::Mat opened_mask;
+
+    cv::Mat element = cv::getStructuringElement( 2, cv::Size( 2*refinement_size + 1, 2*refinement_size+1 ), cv::Point( refinement_size, refinement_size ) );
+
+    cv::morphologyEx(mask,opened_mask,cv::MORPH_OPEN,element,cv::Point(-1,-1),refinement_iterations,cv::BORDER_CONSTANT);
+    cv::morphologyEx(mask,opened_mask,cv::MORPH_CLOSE,element,cv::Point(-1,-1),refinement_iterations,cv::BORDER_CONSTANT);
+
+    //cv::morphologyEx(mask,opened_mask,cv::MORPH_OPEN,100);
+
+    return opened_mask;
+}
+
+void Image_segmentation_classifier::increaseCloseIterations() {
+    refinement_iterations += 1;
+}
+void Image_segmentation_classifier::decreaseCloseIterations() {
+    if(refinement_iterations > 1) {
+        refinement_iterations -= 1;
+    }
+}
+
+void Image_segmentation_classifier::increaseCloseSize() {
+    refinement_size += 1;
+}
+void Image_segmentation_classifier::decreaseCloseSize() {
+    if(refinement_size > 1) {
+        refinement_size -= 1;
+    }
+}
+
+void Image_segmentation_classifier::retrain(){
+    trained = false;
+}
+
+void Image_segmentation_classifier::increaseMahalanobisDistance() {
+    MAX_MAHALANOBIS_DISTANCE += 0.001;
+}
+void Image_segmentation_classifier::decreaseMahalanobisDistance() {
+    if(MAX_MAHALANOBIS_DISTANCE > 0.001) {
+        MAX_MAHALANOBIS_DISTANCE -= 0.001;
+    }
 }
