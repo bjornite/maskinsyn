@@ -28,6 +28,12 @@ class Moving_object_tracker {
     int minimum_matching_features;
     int minimum_moving_features;
 
+    float mahalanobis_threshold_object_model = 0.25;
+    float mahalanobis_threshold_rectangle = 0.2;
+
+    // How confident we are in tracking of the right object
+    double confidence_value = 0;
+
     // x1, x2, y1, y2
     int object_boundary[4];
 
@@ -43,11 +49,15 @@ class Moving_object_tracker {
 
     // Set up crosshair image
     cv::Mat crosshair_image;
-    cv::Point2d crosshair_position;
+    cv::Point2i crosshair_position;
+    cv::Point2i previous_crosshair_position;
 
     // Set up rectangle
-    cv::Point2d rectangle_pt1;
-    cv::Point2d rectangle_pt2;
+    cv::Point2d rectangle_pt1, rectangle_pt2;
+
+    // Rectangle component speed
+    cv::Point2f rectangle_center;
+    int rectangle_speed[2];
 
     // Previous rectangle keypoints and descriptors
     vector<cv::KeyPoint> previous_rectangle_keypoints;
@@ -63,8 +73,6 @@ class Moving_object_tracker {
 
     // Object size, x, y in pixels
     int object_size[2];
-
-    int mode = 0;
 
 public:
     Moving_object_tracker (
@@ -89,15 +97,31 @@ public:
             cv::Point2f pt1,
             cv::Point2f pt2);
 
+    // Calculates the confidence value given the crosshairs movement
+    double calculate_confidence_value ();
+
+    void create_mahalanobis_mask (
+            const vector<cv::KeyPoint>& keypoints,
+            vector<char>& mask);
+
+    void filter_keypoints (
+            const vector<cv::KeyPoint>& keypoints,
+            const vector<char>& mask,
+            vector<cv::KeyPoint>& filtered_keypoints);
+
+    void filter_descriptors (
+            const cv::Mat& descriptors,
+            const vector<char>& mask,
+            cv::Mat& filtered_descriptors);
+
     bool point_is_within_rectangle (
-            cv::Point2f
-    );
+            cv::Point2f);
 
     void mask_stationary_features (
-            const vector<cv::Point2f>& matched_pts1,
-            const vector<cv::Point2f>& matched_pts2,
-            vector<char>& mask,
-            const int min_pixel_movement_percentage);
+            const vector<cv::Point2f> &matched_pts1,
+            const vector<cv::Point2f> &matched_pts2,
+            vector<char> &mask,
+            float min_pixel_movement_percentage);
 
     void mask_false_moving_features (
             const vector<cv::Point2f>& matched_pts1,
@@ -116,7 +140,7 @@ public:
             vector<cv::KeyPoint>& matching_keypoints);
 
     void add_new_keypoints_to_model (
-            const vector<cv::KeyPoint> &keypoints,
+            const vector<cv::KeyPoint>& keypoints,
             const cv::Mat &descriptors);
 
     void get_rectangle_keypoints_and_descriptors (
@@ -124,6 +148,11 @@ public:
             const cv::Mat& image_descriptors,
             vector<cv::KeyPoint>& rectangle_keypoints,
             cv::Mat& rectangle_descriptors);
+
+    // Removes keypoints not within mahalanobis distance
+    void refine_keypoints_mahalanobis (
+            const vector<cv::KeyPoint>& keypoints,
+            vector<cv::KeyPoint>& output_keypoints);
 
     cv::Point2d calculate_crosshair_position (
             const vector<cv::KeyPoint> &keypoints);
@@ -141,7 +170,24 @@ public:
     // Resets the object model
     void reset ();
 
-    void switch_mode ();
+    // TODO DEBUG/imshow
+    void show_debug_images (
+            const vector<cv::KeyPoint>& current_keypoints,
+            const vector<cv::KeyPoint>& mk,
+            const vector<cv::KeyPoint>& moving_keypoints,
+            const vector<cv::KeyPoint>& refined_moving_keypoints,
+            const cv::Mat& current_image,
+            const vector<char>& mask,
+            const vector<cv::DMatch>& matches);
+
+
+    // Wipes the additional saved keypoints
+    void wipe_rectangle_model ();
+
+    double get_confidence_value ();
+
+    cv::Point2i get_object_position ();
 };
+
 
 #endif //MASKINSYN_MOVING_OBJECT_DETECTOR_H

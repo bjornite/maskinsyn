@@ -22,7 +22,8 @@ Moving_object_tracker::Moving_object_tracker (
         // Initialize feature detector
     detector = cv::xfeatures2d::SURF::create(max_keypoints);
 
-    crosshair_position = cv::Point2d(0, 0);
+    crosshair_position = cv::Point2i(resized_image_size.width, resized_image_size.height);
+    rectangle_center = crosshair_position;
 
     // Find keypoints and their descriptors for the first image
     detector->detect( previous_image, previous_keypoints);
@@ -69,6 +70,23 @@ float Moving_object_tracker::euclidian_distance (
     return sqrt(pow(pt1.x - pt2.x,2) + pow(pt1.y - pt2.y,2));
 }
 
+// Calculates the confidence value given crosshair movement and the object size
+double Moving_object_tracker::calculate_confidence_value ()
+{
+    double image_diagonal = sqrt(pow((double)resized_image_size.width, 2) + pow((double)resized_image_size.height, 2));
+    double crosshair_movement = euclidian_distance(crosshair_position, previous_crosshair_position);
+    double crosshair_movement_object_size_factor = crosshair_movement / max(object_size[0], object_size[1]);
+
+    if (crosshair_movement_object_size_factor > 1)
+        confidence_value = 0;
+    else
+        confidence_value = pow((1 - crosshair_movement / image_diagonal), 4) - crosshair_movement_object_size_factor;
+
+    if (confidence_value < 0) confidence_value = 0;
+
+    printf("%f ", crosshair_movement);
+}
+
 // Returns true if the point is within the object boundary rectangle
 bool Moving_object_tracker::point_is_within_rectangle (
         cv::Point2f point)
@@ -81,13 +99,13 @@ bool Moving_object_tracker::point_is_within_rectangle (
 
 // Fills a binary mask given the distance between matching points
 // min_pixel_movement_percentage is the distance a feature must move per 1/FRAMERATE second
-// to be counted as a moving feature. Givei in percentage of the whole frame width.
+// to be counted as a moving feature. Given in percentage of the whole frame width.
 
 void Moving_object_tracker::mask_stationary_features (
         const vector<cv::Point2f>& matched_pts1,
         const vector<cv::Point2f>& matched_pts2,
         vector<char>& mask,
-        const int min_pixel_movement_percentage)
+        float min_pixel_movement_percentage)
 {
     mask.clear();
 
@@ -138,8 +156,8 @@ void Moving_object_tracker::mask_false_moving_features (
         // Only look at non-masked keypoints
         if (mask.at(i) == true) {
             // Create vector from point1 to point2
-            int x = matched_pts2.at(i).x - matched_pts1.at(i).x;
-            int y = matched_pts2.at(i).y - matched_pts1.at(i).y;
+            int x = (int) (matched_pts2.at(i).x - matched_pts1.at(i).x);
+            int y = (int) (matched_pts2.at(i).y - matched_pts1.at(i).y);
             cv::Point2d p(x, y);
             float a = euclidian_distance(p, mean_vector);
             float b = minimum_distance;
@@ -167,6 +185,52 @@ void Moving_object_tracker::get_unmasked_keypoints (
         if (mask.at(i)) {
             cnt++;
             unmasked_keypoints.push_back(keypoints.at(matches.at(i).queryIdx));
+        }
+    }
+    //printf("Found %d/%d moving rectangle keypoints ", cnt, mask.size());
+}
+
+void Moving_object_tracker::filter_keypoints (
+        const vector<cv::KeyPoint>& keypoints,
+        const vector<char>& mask,
+        vector<cv::KeyPoint>& filtered_keypoints)
+{
+    if (keypoints.size() != mask.size()){
+        CV_Error(cv::Error::StsBadSize,"matches and mask must be the same size");
+    }
+    for (int i = 0; i < mask.size(); i++) {
+        if (mask.at(i)) {
+            filtered_keypoints.push_back(keypoints.at(i));
+        }
+    }
+}
+
+void Moving_object_tracker::filter_descriptors (
+        const cv::Mat& descriptors,
+        const vector<char>& mask,
+        cv::Mat& filtered_descriptors)
+{
+    if (descriptors.rows != mask.size()){
+        CV_Error(cv::Error::StsBadSize,"matches and mask must be the same size");
+    }
+    for (int i = 0; i < mask.size(); i++) {
+        if (mask.at(i)) {
+            filtered_descriptors.push_back(descriptors.row(i));
+        }
+    }
+}
+
+// TODO DEBUG
+void get_unmasked_matches (
+        const vector<cv::DMatch>& matches,
+        const vector<char>& mask,
+        vector<cv::DMatch>& unmasked_matches) {
+    if (matches.size() != mask.size()) {
+        CV_Error(cv::Error::StsBadSize, "matches and mask must be the same size");
+    }
+    for (int i = 0; i < mask.size(); i++) {
+        if (mask.at(i)) {
+            unmasked_matches.push_back(matches.at(i));
         }
     }
     //printf("Found %d/%d moving rectangle keypoints ", cnt, mask.size());
@@ -248,6 +312,64 @@ void Moving_object_tracker::get_rectangle_keypoints_and_descriptors (
     }
 }
 
+// Creates vector mask, each index is marked true if the corresponding keypoint is within the mahalanobis distance
+void Moving_object_tracker::create_mahalanobis_mask (
+        const vector<cv::KeyPoint>& keypoints,
+        vector<char>& mask)
+{
+    cv::Mat samples;
+    cv::Mat covariance_matrix;
+    cv::Mat mean;
+
+    // Create sample matrix, one keypoint, x and y on each row
+    for (int i = 0; i < keypoints.size(); i++) {
+        cv::Mat row;
+        row.push_back(keypoints.at(i).pt.x);
+        row.push_back(keypoints.at(i).pt.y);
+
+        samples.push_back(row.t());
+    }
+
+    cv::calcCovarMatrix(samples, covariance_matrix, mean, CV_COVAR_ROWS + CV_COVAR_NORMAL, CV_32F);
+
+    // Set mask indexes
+    for (int i = 0; i < keypoints.size(); i++) {
+        mask.push_back(cv::Mahalanobis(samples.row(i), mean, covariance_matrix.inv()) < mahalanobis_threshold_object_model);
+    }
+}
+
+// Removes keypoints not within mahalanobis distance
+void Moving_object_tracker::refine_keypoints_mahalanobis (
+        const vector<cv::KeyPoint>& keypoints,
+        vector<cv::KeyPoint>& output_keypoints)
+{
+    vector<cv::KeyPoint> ditched_moving_keypoints;
+    cv::Mat samples;
+    cv::Mat covariance_matrix;
+    cv::Mat mean;
+
+    // Create sample matrix, one keypoint, x and y on each row
+    for (int i = 0; i < keypoints.size(); i++) {
+        cv::Mat row;
+        row.push_back(keypoints.at(i).pt.x);
+        row.push_back(keypoints.at(i).pt.y);
+
+        samples.push_back(row.t());
+    }
+
+    cv::calcCovarMatrix(samples, covariance_matrix, mean, CV_COVAR_ROWS + CV_COVAR_NORMAL, CV_32F);
+
+    // Extract features within mahalanobis distance
+    for (int i = 0; i < keypoints.size(); i++) {
+        if(cv::Mahalanobis(samples.row(i), mean, covariance_matrix.inv()) < mahalanobis_threshold_object_model)
+            output_keypoints.push_back(keypoints.at(i));
+        else
+            ditched_moving_keypoints.push_back(keypoints.at(i));
+    }
+}
+
+
+
 // Updates crosshair position to be the mean of the given keypoints
 cv::Point2d Moving_object_tracker::calculate_crosshair_position (
         const vector<cv::KeyPoint> &keypoints)
@@ -297,13 +419,6 @@ void Moving_object_tracker::update_object_boundary (
     object_size[1] = maxY - minY;
 }
 
-void Moving_object_tracker::switch_mode()
-{
-    if (mode < 1)
-        mode++;
-    else mode = 0;
-}
-
 void Moving_object_tracker::track(
         cv::Mat& input_image,
         cv::Mat& feature_image,
@@ -321,11 +436,9 @@ void Moving_object_tracker::track(
     // Copy image to crosshair image
     current_image.copyTo(crosshair_image);
 
-    // DEBUG
+    // TODO DEBUG/imshow
     cv::Mat image2;
     current_image.copyTo(image2);
-
-    // TODO Maybe only detect keypoints within the rectangle if it is defined
 
     // Find keypoints
     vector<cv::KeyPoint> current_keypoints;
@@ -362,6 +475,10 @@ void Moving_object_tracker::track(
                 // Mask features that are not moving
                 mask_stationary_features(matching_pts1, matching_pts2, mask, 2);
 
+                // TODO DEBUG/imshow
+                vector<cv::KeyPoint> mk;
+                get_unmasked_keypoints(good_matches, mask, current_keypoints, mk);
+
                 // Mask features that do not move the same way as the mean
                 mask_false_moving_features(matching_pts2, matching_pts1, mask);
 
@@ -378,10 +495,16 @@ void Moving_object_tracker::track(
                     // Only wipe model if we have some moving keypoints
                     if (moving_keypoints.size() > minimum_moving_features) {
 
+                        // Refine the keypoints, remove keypoints with high mahalanobis distance
+                        vector<cv::KeyPoint> refined_moving_keypoints;
+                        refine_keypoints_mahalanobis(moving_keypoints, refined_moving_keypoints);
+
+                        show_debug_images(current_keypoints, mk, moving_keypoints, refined_moving_keypoints,
+                                          current_image, mask, good_matches);
+
                         // Compute descriptors for the moving features. This can be optimized by looking them up.
                         // Currently computes these twice.
-                        detector->compute(current_image, moving_keypoints, saved_object_descriptors);
-                        saved_object_descriptors.copyTo(new_object_descriptors);
+                        detector->compute(current_image, refined_moving_keypoints, saved_object_descriptors);
 
                         saved_object = true;
                         printf("Object saved!\n");
@@ -393,9 +516,10 @@ void Moving_object_tracker::track(
                         saved_object = true;
 
                         // Update rectangle position
-                        update_object_boundary(object_boundary, moving_keypoints);
+                        update_object_boundary(object_boundary, refined_moving_keypoints);
                         rectangle_pt1 = cv::Point2d(object_boundary[0], object_boundary[2]); // x1, y1
                         rectangle_pt2 = cv::Point2d(object_boundary[1], object_boundary[3]); // x2, y2
+                        rectangle_center = crosshair_position;
                     }
                 }
             }
@@ -405,85 +529,149 @@ void Moving_object_tracker::track(
             // Look for saved features in the image
             vector<vector<cv::DMatch>> object_matches, additional_matches, rectangle_matches;
 
+            // Look for object matches
+            matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches, 2);
+            vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches, 0.5);
+
+
+            // RECTANGLE *************************************************************************************
+            // Get rectangle keypoints and descriptors
             vector<cv::KeyPoint> rectangle_keypoints;
             cv::Mat rectangle_descriptors;
-
             get_rectangle_keypoints_and_descriptors(current_keypoints, current_descriptors,
                                                     rectangle_keypoints, rectangle_descriptors);
 
-            matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches, 2);
-            if (!previous_rectangle_keypoints.empty())
+            // Look for new rectangle matches (based on prev image)
+            if (!previous_rectangle_keypoints.empty()) {
                 matcher.knnMatch(rectangle_descriptors, previous_rectangle_descriptors, rectangle_matches, 2);
-            if (!new_object_descriptors.empty())
-                matcher.knnMatch(current_descriptors, new_object_descriptors, additional_matches, 2);
-
-
-            vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches, 0.5);
+            }
             vector<cv::DMatch> good_rectangle_matches = extract_good_ratio_matches(rectangle_matches, 0.5);
+
+            // Look for additional matches in the rectangle model
+            vector<cv::KeyPoint> additional_matching_keypoints;
+            if (!new_object_descriptors.empty()) {
+                matcher.knnMatch(current_descriptors, new_object_descriptors, additional_matches, 2);
+            }
             vector<cv::DMatch> additional_good_matches = extract_good_ratio_matches(additional_matches, 0.5);
+            get_matching_keypoints(additional_good_matches, current_keypoints, additional_matching_keypoints);
+
+            // Get the matching keypoints
+            vector<cv::KeyPoint> matching_keypoints, rectangle_matching_keypoints, rectangle_moving_keypoints;
+            get_matching_keypoints(good_object_matches, current_keypoints, matching_keypoints);
+            get_matching_keypoints(good_rectangle_matches, rectangle_keypoints, rectangle_matching_keypoints);
 
 
+            // Get rectangle keypoints that are moving
+            vector<char> mask;
+            vector<cv::Point2f> rect_points1; // Previous
+            vector<cv::Point2f> rect_points2; // Current
+            cv::Mat moving_rectangle_descriptors;
 
+            extract_matching_points(rectangle_keypoints, previous_rectangle_keypoints, good_rectangle_matches, rect_points2, rect_points1);
 
-                // Get the matching keypoints
-                vector<cv::KeyPoint> matching_keypoints, rectangle_matching_keypoints, rectangle_moving_keypoints, additional_matching_keypoints;
-                get_matching_keypoints(good_object_matches, current_keypoints, matching_keypoints);
-                get_matching_keypoints(good_rectangle_matches, rectangle_keypoints, rectangle_matching_keypoints);
-                get_matching_keypoints(additional_good_matches, current_keypoints, additional_matching_keypoints);
+            mask_stationary_features(rect_points1, rect_points2, mask, 0.5);
+            mask_false_moving_features(rect_points1, rect_points2, mask);
+            get_unmasked_keypoints(good_rectangle_matches, mask, rectangle_keypoints, rectangle_moving_keypoints);
+            get_unmasked_descriptors(good_rectangle_matches, mask, rectangle_descriptors, moving_rectangle_descriptors);
 
-                // Get rectangle keypoints that are moving
-                vector<char> mask;
-                vector<cv::Point2f> rect_points1; // Previous
-                vector<cv::Point2f> rect_points2; // Current
-                cv::Mat moving_rectangle_descriptors;
+            // Refine rectangle matches by removing features far from mean
+            vector<cv::KeyPoint> refined_rectangle_moving_keypoints;
+            cv::Mat refined_rectangle_moving_descriptors;
+            if (!rectangle_moving_keypoints.empty()) {
+                vector<char> mahalanobis_mask;
+                create_mahalanobis_mask(rectangle_moving_keypoints, mahalanobis_mask);
 
-                extract_matching_points(rectangle_keypoints, previous_rectangle_keypoints, good_rectangle_matches, rect_points2, rect_points1);
+                // Filtering out features far from the mean
+                filter_keypoints(rectangle_moving_keypoints, mahalanobis_mask, refined_rectangle_moving_keypoints);
+                filter_descriptors(moving_rectangle_descriptors, mahalanobis_mask,
+                                   refined_rectangle_moving_descriptors);
 
-                // Find moving points within rectangle
-                mask_stationary_features(rect_points1, rect_points2, mask, 0.5);
-                mask_false_moving_features(rect_points1, rect_points2, mask);
-                get_unmasked_keypoints(good_rectangle_matches, mask, rectangle_keypoints, rectangle_moving_keypoints);
-                get_unmasked_descriptors(good_rectangle_matches, mask, rectangle_descriptors, moving_rectangle_descriptors);
+            }
 
-                // Add new keypoints that moved within the rectangle to the new_object_model
+            // Add new keypoints that moved within the rectangle to the new_object_model
+            if (!refined_rectangle_moving_keypoints.empty()) {
+                add_new_keypoints_to_model(refined_rectangle_moving_keypoints, refined_rectangle_moving_descriptors);
+            } else {
                 add_new_keypoints_to_model(rectangle_moving_keypoints, moving_rectangle_descriptors);
+            }
 
-                vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
+            // Add matches from the rectangle model to all matches if there are some
+            vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
+            if (! additional_matching_keypoints.empty())
                 all_matching_keypoints.insert(all_matching_keypoints.end(), additional_matching_keypoints.begin(), additional_matching_keypoints.end());
 
+            // Update crosshair position and confidence_value
+            // Set rectangle position to crosshair position if we have 20% of original keypoints
+            if (good_object_matches.size() >= saved_object_descriptors.rows*0.2) {
+                confidence_value = 0.8 + 0.2*(good_object_matches.size() / (double)saved_object_descriptors.rows);
+                crosshair_position = calculate_crosshair_position(matching_keypoints);
 
-                // Update crosshair position
-                //crosshair_position = calculate_crosshair_position(matching_keypoints);
-                crosshair_position = calculate_crosshair_position(all_matching_keypoints);
-                rectangle_pt1 = cv::Point2d(crosshair_position.x - object_size[0]/2, crosshair_position.y - object_size[1]/2);
-                rectangle_pt2 = cv::Point2d(crosshair_position.x + object_size[0]/2, crosshair_position.y + object_size[1]/2);
+                rectangle_center.x = crosshair_position.x;
+                rectangle_center.y = crosshair_position.y;
+                rectangle_speed[0] = 0;
+                rectangle_speed[1] = 0;
+            } else {
+                if (all_matching_keypoints.size() > 0) {
+                    crosshair_position = calculate_crosshair_position(all_matching_keypoints);
+                    rectangle_center.x = crosshair_position.x;
+                    rectangle_center.y = crosshair_position.y;
+
+                    calculate_confidence_value();
+                } else
+                    confidence_value = 0;
+            }
+
+            // Update rectangle position
+            //update_object_boundary(object_boundary, all_matching_keypoints);
 
 
 
-                // Update rectangle position
-                //update_object_boundary(object_boundary, all_matching_keypoints);
+            // Draw matched keypoints
+            cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image);
+            cv::drawKeypoints(image2, additional_matching_keypoints, image2);
 
-                // Draw matched keypoints
-                cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image);
-                cv::drawKeypoints(image2, additional_matching_keypoints, image2);
+            // Draw movement arrow
+            if (rectangle_moving_keypoints.size() > 5) {
+                cv::arrowedLine(crosshair_image,
+                                cv::Point2d((image_width / resize_factor) / 2,
+                                            (image_height / resize_factor) / 2),
+                                cv::Point2d((image_width / resize_factor) / 2 + drawn_mean_vector.x,
+                                            (image_height / resize_factor) / 2 + drawn_mean_vector.y),
+                                cv::Scalar(0, 0, 255), 1);
+            }
 
-                // Draw movement arrow
-                if (rectangle_moving_keypoints.size() > 5) {
-                    cv::arrowedLine(crosshair_image,
-                                    crosshair_position,
-                                    cv::Point2d((image_width / resize_factor) / 2 + drawn_mean_vector.x,
-                                                (image_height / resize_factor) / 2 + drawn_mean_vector.y),
-                                    cv::Scalar(0, 0, 255), 1);
-                }
-
-                printf("Normal matches: %d, Additional matches: %d, overwrote %d\n", (int)good_object_matches.size(), new_object_descriptors.rows, next_descriptor_to_overwrite);
-
+            printf("Normal matches: %d, Additional matches: %d\n", (int)good_object_matches.size(), new_object_descriptors.rows);
 
             // Update previous pointes
             previous_rectangle_keypoints = rectangle_keypoints;
             previous_rectangle_descriptors = rectangle_descriptors;
         }
     }
+    // We do not have previous descriptors
+    else {
+        confidence_value = 0;
+    }
+
+    // Update rectangle position
+    float x_dist_to_target = (float) (crosshair_position.x - rectangle_center.x);
+    float y_dist_to_target = (float) (crosshair_position.y - rectangle_center.y);
+
+    rectangle_speed[0] += x_dist_to_target/5;
+    rectangle_speed[1] += y_dist_to_target/5;
+
+    //rectangle_center.x += rectangle_speed[0];
+    //rectangle_center.y += rectangle_speed[1];
+    rectangle_center.x += x_dist_to_target/3;
+    rectangle_center.y += y_dist_to_target/3;
+
+    printf("Confidence: %.2f ", confidence_value);
+
+    rectangle_pt1 = cv::Point2d(rectangle_center.x - object_size[0]/2, rectangle_center.y - object_size[1]/2);
+    rectangle_pt2 = cv::Point2d(rectangle_center.x + object_size[0]/2, rectangle_center.y + object_size[1]/2);
+
+    // Reduce rectangle speed due to drag
+    rectangle_speed[0] *= 0.99;
+    rectangle_speed[1] *= 0.99;
 
     // Draw crosshair and rectangle
     cv::drawMarker(crosshair_image, crosshair_position, cv::Scalar::all(255), cv::MARKER_CROSS, 100, 1, 8);
@@ -502,10 +690,74 @@ void Moving_object_tracker::track(
     previous_image = current_image;
     previous_keypoints = current_keypoints;
     previous_descriptors = current_descriptors;
+    previous_crosshair_position = crosshair_position;
 }
 
 void Moving_object_tracker::reset()
 {
     printf("Resetting model..\n");
+
+    crosshair_position = cv::Point2i(0,0);
+    rectangle_center = cv::Point2i(0,0);
+
     saved_object = false;
+}
+
+// TODO DEBUG/imshow
+void Moving_object_tracker::show_debug_images (
+        const vector<cv::KeyPoint>& current_keypoints,
+        const vector<cv::KeyPoint>& mk,
+        const vector<cv::KeyPoint>& moving_keypoints,
+        const vector<cv::KeyPoint>& refined_moving_keypoints,
+        const cv::Mat& current_image,
+        const vector<char>& mask,
+        const vector<cv::DMatch>& matches)
+{
+    vector<cv::DMatch> moving_matches;
+    get_unmasked_matches(matches, mask, moving_matches);
+
+    std::string af = "All features";
+    std::string mf = "Moving features";
+    std::string mfsd = "Moving in same direction features";
+    std::string rmf = "Refined features";
+    std::string vis = "Matches";
+    cv::namedWindow(af);
+    cv::namedWindow(mf);
+    cv::namedWindow(mfsd);
+    cv::namedWindow(rmf);
+    cv::namedWindow(vis);
+    cv::Mat tmp1, tmp2, tmp3, tmp4, tmp5;
+    cv::drawKeypoints(crosshair_image, current_keypoints, tmp1);
+    cv::drawKeypoints(crosshair_image, mk, tmp2);
+    cv::drawKeypoints(crosshair_image, moving_keypoints, tmp3);
+    cv::drawKeypoints(crosshair_image, refined_moving_keypoints, tmp4);
+    cv::drawMatches(current_image, current_keypoints, previous_image, previous_keypoints, moving_matches, tmp5);
+    resize(tmp1, tmp1, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
+    resize(tmp2, tmp2, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
+    resize(tmp3, tmp3, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
+    resize(tmp4, tmp4, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
+    resize(tmp5, tmp5, cv::Size(image_width*4, image_height*2), 0, 0, cv::INTER_LINEAR);
+    imshow(af, tmp1);
+    imshow(mf, tmp2);
+    imshow(mfsd, tmp3);
+    imshow(rmf, tmp4);
+    imshow(vis, tmp5);
+}
+
+// Wipes the additional saved keypoints
+void Moving_object_tracker::wipe_rectangle_model ()
+{
+    new_object_descriptors.release();
+}
+
+// Returns the current confidence value
+double Moving_object_tracker::get_confidence_value ()
+{
+    return confidence_value;
+}
+
+
+cv::Point2i Moving_object_tracker::get_object_position ()
+{
+    return rectangle_center;
 }

@@ -85,7 +85,6 @@ int main() {
                 // Fetch video stream
                 cap >> raw_image;
 
-
                 cv::Mat feature_image, outputImage2;
 
                 tracker.track(raw_image, feature_image, output_image, outputImage2);
@@ -98,6 +97,7 @@ int main() {
                 int key = cv::waitKey(30);
                 if (key == 'q') break;
                 if (key == 'r') tracker.reset();
+                if (key == 'w') tracker.wipe_rectangle_model();
             }
             break;
     }
