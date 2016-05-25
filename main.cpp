@@ -4,11 +4,13 @@
 
 // Higher value = less pixels (faster)
 const int RESIZE_FACTOR = 2;
-const int mode = 2; // car be: TEXTURE = 1 , FEATURE = 2
+int mode = 1; // car be: TEXTURE = 1 , FEATURE = 2
+int nr_of_modes = 2;
 
 // The distance features must move per 1/FRAMERATE second to track
 // movement in percentage of the whole frame size
 const double MIN_MOVEMENT_THRESHOLD = 1;
+double MAX_MAHALANOBIS_DISTANCE = 0.05; //Default value, can be changed manually or by the alorithm
 
 // This factor multiplied with the mean movement vector length gives the euclidian distance threshold
 // for features to count as part of the tracked object
@@ -37,68 +39,84 @@ int main() {
     // Setting frame rate
     cap.set(CV_CAP_PROP_FPS, 5);
 
-    switch (mode) {
-        case 1:
 
-            result_window = "Color segmented image";
-            cv::namedWindow(result_window);
+    //Make the image classifier
+    Image_segmentation_classifier img_seg_classifier = Image_segmentation_classifier(
+            MAX_MAHALANOBIS_DISTANCE);
 
-            while (true) {
-                //Get an image from the camera
-                cv::Mat current_image, segmented_image;
-                cap >> current_image;
+    bool done;
 
-                //Make the image classifier
-                Image_segmentation_classifier img_seg_classifier = Image_segmentation_classifier();
+    while(!done) {
 
-                //Classify image
-                img_seg_classifier.segment(current_image, segmented_image);
+        switch (mode) {
+            case 1:
 
-                imshow(result_window, segmented_image);
+                while (true) {
+                    //Get an image from the camera
+                    cv::Mat current_image, segmented_image;
+                    cap >> current_image;
 
-                int key = cv::waitKey(30);
-                if (key == 'q') break;
-            }
-            break;
+                    //Classify image
+                    img_seg_classifier.segment(current_image, segmented_image);
 
-        case 2:
+                    imshow(result_window, segmented_image);
 
-            std::string feature_window = "Detected features";
-            cv::namedWindow(feature_window);
-            cv::moveWindow(feature_window, 0, 0);
+                    int key = cv::waitKey(30);
+                    if (key == 'q') {
+                        done = true;
+                        break;
+                    }
+                    if (key == 'w') img_seg_classifier.increaseCloseIterations();
+                    if (key == 's') img_seg_classifier.decreaseCloseIterations();
+                    if (key == 'e') img_seg_classifier.increaseCloseSize();
+                    if (key == 'd') img_seg_classifier.decreaseCloseSize();
+                    if (key == 'r') img_seg_classifier.increaseMahalanobisDistance();
+                    if (key == 'f') img_seg_classifier.decreaseMahalanobisDistance();
+                    if (key == 'g') img_seg_classifier.retrain();
+                    if (key == 'a') {
+                        mode += 1;
+                        break;
+                    }
+                }
+                break;
 
-            result_window = "Original features";
-            cv::namedWindow(result_window);
-            cv::moveWindow(result_window, 0, 0);
+            case 2:
 
-            std::string result_window2 = "Additional features";
-            cv::namedWindow(result_window2);
-            cv::moveWindow(result_window2, 1300, 0);
-        
+                std::string feature_window = "Detected features";
+                cv::namedWindow(feature_window);
+                cv::moveWindow(feature_window, 0, 0);
 
-            cv::Mat raw_image, output_image;
-            Moving_object_tracker tracker(400, 10, 10, 0.3, 2);
-  
+                result_window = "Original features";
+                cv::namedWindow(result_window);
+                cv::moveWindow(result_window, 0, 0);
 
-            // Main loop
-            while (true) {
-                // Fetch video stream
-                cap >> raw_image;
+                std::string result_window2 = "Additional features";
+                cv::namedWindow(result_window2);
+                cv::moveWindow(result_window2, 1300, 0);
 
-                cv::Mat feature_image, outputImage2;
+                cv::Mat raw_image, output_image;
+                Moving_object_tracker tracker(400, 10, 10, 0.3, 2);
 
-                tracker.track(raw_image, feature_image, output_image, outputImage2);
+                // Main loop
+                while (true) {
+
+                    // Fetch video stream
+                    cap >> raw_image;
+                    cv::Mat feature_image, outputImage2;
+
+                    tracker.track(raw_image, feature_image, output_image, outputImage2);
+
+                    imshow(feature_window, feature_image);
+                    imshow(result_window, output_image);
+                    imshow(result_window2, outputImage2);
                 
-                imshow(feature_window, feature_image);
-                imshow(result_window, output_image);
-                imshow(result_window2, outputImage2);
-                
-                
-                int key = cv::waitKey(30);
-                if (key == 'q') break;
-                if (key == 'r') tracker.reset();
-                if (key == 'w') tracker.wipe_rectangle_model();
-            }
-            break;
+                    int key = cv::waitKey(30);
+                    if (key == 'q') {done = true; break;}
+                    if (key == 'r') tracker.reset();
+                    if (key == 'w') tracker.wipe_rectangle_model();
+                    if (key == 'a') {mode = 1; break;}
+                }
+                break;
+        }
     }
 }
