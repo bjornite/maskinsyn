@@ -18,18 +18,26 @@ static cv::Ptr<Image_segmentation_classifier> Image_segmentation_classifier::cre
 
 void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
 
+    cv::resize(image, image, cv::Size(320,240),0,0,cv::INTER_LINEAR);
+
     //Convert image to LAB color space and 64-bit float
-    cv::Mat image_lab, image_lab_64;
+    cv::Mat image_lab, image_lab_64,image_ab;
 
     cv::cvtColor(image, image_lab, CV_BGR2Lab);
+
+    //makeABmatrix(image_lab,image_ab);
+    //image_ab.convertTo(dst_image,CV_Lab2BGR);
+    //image_lab.copyTo(dst_image);
+
     image_lab.convertTo(image_lab_64, CV_64FC3);
+
     //image_lab_64.convertTo(dst_image,CV_8UC3);
 
     //Rectangle stuff:
     cv::Mat reference_rectangle;
 
-    cv::Rect myROI(280, 350, 80, 80);
-
+    //cv::Rect myROI(280, 350, 80, 80);
+    cv::Rect myROI(140, 175, 40, 40);
 
     reference_rectangle = image_lab_64(myROI).clone();
 
@@ -43,11 +51,13 @@ void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
         cv::Mat mask = mahalanobis_distance_for_each_pixel(image_lab_64);
         cv::Mat opened_mask = refineMask(mask);
 
-        calculateCrosshairPosition(mask);
+        calculateObjectPosition(mask);
 
         drawMask(image_lab,opened_mask);
     }
 
+
+    //Put some useful information on the output image
     char text1[40];
     char text2[40];
     char text3[40];
@@ -58,12 +68,19 @@ void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
     cv::putText(image_lab, text2, cv::Point(4, 40), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
     cv::putText(image_lab, text3, cv::Point(4, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
 
+    //Draw the reference rectangle
     cv::rectangle(image_lab, myROI, 2, 0);
+
     //printf("%.1f,%.1f\n",crossHairPosition.x,crossHairPosition.y);
+
     cv::drawMarker(image_lab, crossHairPosition, cv::Scalar::all(0), cv::MARKER_CROSS, 100, 1, 8);
     //cv::cvtColor(image_lab,dst_image,CV_Lab2BGR);
-    image_lab.copyTo(dst_image);
+    image_lab.convertTo(dst_image,CV_Lab2BGR);
+    cv::resize(dst_image, dst_image, cv::Size(640,480),0,0,cv::INTER_LINEAR);
+    //image_lab.copyTo(dst_image);
+
 }
+
 
 void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
     image.forEach<cv::Point3_<double>>([](cv::Point3_<double> &p, const int * position) -> void {
@@ -71,6 +88,25 @@ void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
     });
 }
 
+cv::Point2d Image_segmentation_classifier::get_object_position() {
+    return crossHairPosition;
+}
+
+double Image_segmentation_classifier::get_confidence_value() {
+    return confidenceValue;
+}
+
+void Image_segmentation_classifier::makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab) {
+
+    cv::Mat channels[3];
+
+    cv::split(image_lab,channels);
+
+    channels[0]=cv::Mat::ones(image_lab.rows, image_lab.cols, CV_8UC1) * 128;
+
+    cv::merge(channels,3,image_ab);
+
+}
 
 void Image_segmentation_classifier::drawMask(cv::Mat image, cv::Mat mask) {
 
@@ -87,7 +123,7 @@ void Image_segmentation_classifier::drawMask(cv::Mat image, cv::Mat mask) {
     });
 }
 
-void Image_segmentation_classifier::calculateCrosshairPosition(cv::Mat mask) {
+void Image_segmentation_classifier::calculateObjectPosition(cv::Mat mask) {
 
     int x = 0;
     int y = 0;
@@ -106,6 +142,23 @@ void Image_segmentation_classifier::calculateCrosshairPosition(cv::Mat mask) {
         crossHairPosition.y = y / counter;
     }
 
+    //Simple estimation of confidence value. This should be redone properly.
+
+    double sumOfVariances = 0;
+
+    for (int i = 0; i < covariance_matrix.size[0]; i++) {
+        sumOfVariances += covariance_matrix.at<double>(i,i);
+    }
+
+    confidenceValue = pow(1 - (sumOfVariances / 15000000),2);
+    printf("%.4f\n",confidenceValue);
+
+    if (counter > mask.size[0]*mask.size[1] / 3) {
+        confidenceValue -= 0.3;
+    }
+    if (confidenceValue < 0) {
+        confidenceValue = 0;
+    }
 }
 
 void Image_segmentation_classifier::train(cv::Mat reference_rectangle) {

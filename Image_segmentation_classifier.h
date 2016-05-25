@@ -28,9 +28,14 @@ public:
 
     void drawMask(cv::Mat image, cv::Mat mask);
 
-    void calculateCrosshairPosition(cv::Mat mask);
+    void calculateObjectPosition(cv::Mat mask);
+    cv::Point2d get_object_position();
+    double get_confidence_value();
 
     void normalizeL(cv::Mat& image);
+    void makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab);
+
+
 
     void increaseCloseIterations();
     void decreaseCloseIterations();
@@ -44,6 +49,7 @@ private:
     cv::Mat mean;
     cv::Mat covariance_matrix;
     cv::Mat inv_covariance_matrix;
+    double confidenceValue;
     cv::Point2d crossHairPosition;
     double MAX_MAHALANOBIS_DISTANCE;
     int refinement_iterations;

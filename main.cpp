@@ -19,9 +19,8 @@ const float MOVEMENT_VECTOR_SIMILARITY_THRESHOLD = 0.3;
 
 int main() {
 
-    // Set up windows:
+    // Main window
     std::string result_window;
-
 
     // Get video from webcam or internal camera
     cv::VideoCapture cap;
@@ -40,10 +39,10 @@ int main() {
     // Setting frame rate
     cap.set(CV_CAP_PROP_FPS, 5);
 
+
     //Make the image classifier
     Image_segmentation_classifier img_seg_classifier = Image_segmentation_classifier(
             MAX_MAHALANOBIS_DISTANCE);
-
 
     bool done;
 
@@ -63,7 +62,10 @@ int main() {
                     imshow(result_window, segmented_image);
 
                     int key = cv::waitKey(30);
-                    if (key == 'q') {done = true; break;}
+                    if (key == 'q') {
+                        done = true;
+                        break;
+                    }
                     if (key == 'w') img_seg_classifier.increaseCloseIterations();
                     if (key == 's') img_seg_classifier.decreaseCloseIterations();
                     if (key == 'e') img_seg_classifier.increaseCloseSize();
@@ -78,30 +80,45 @@ int main() {
                 }
                 break;
 
+
             case 2:
 
-                result_window = "Object tracker";
+                std::string feature_window = "Detected features";
+                cv::namedWindow(feature_window);
+                cv::moveWindow(feature_window, 0, 0);
+
+                result_window = "Original features";
                 cv::namedWindow(result_window);
+                cv::moveWindow(result_window, 0, 0);
+
+                std::string result_window2 = "Additional features";
+                cv::namedWindow(result_window2);
+                cv::moveWindow(result_window2, 1300, 0);
+
 
                 cv::Mat raw_image, output_image;
-                Moving_object_tracker tracker(400, 10, 1, 0.3, 2);
+                Moving_object_tracker tracker(400, 10, 10, 0.3, 2);
 
                 // Main loop
                 while (true) {
+
                     // Fetch video stream
                     cap >> raw_image;
 
-                    tracker.track(raw_image, output_image);
 
+                    cv::Mat feature_image, outputImage2;
+
+                    tracker.track(raw_image, feature_image, output_image, outputImage2);
+
+                    imshow(feature_window, feature_image);
                     imshow(result_window, output_image);
+                    imshow(result_window2, outputImage2);
+
 
                     int key = cv::waitKey(30);
-                    if (key == 'q') {done = true; break;}
+                    if (key == 'q') { done = true; break;}
                     if (key == 'r') tracker.reset();
-                    if (key == 'a') {
-                        mode = 1;
-                        break;
-                    }
+                    if (key == 'a') {mode = 1; break;}
                 }
                 break;
         }
