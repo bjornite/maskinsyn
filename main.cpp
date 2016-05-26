@@ -63,7 +63,7 @@ int main() {
                 cv::moveWindow(result_window, 0, 0);
 
                 //Make the image classifier
-                Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE);
+                Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE,RESIZE_FACTOR);
 
                 while (true) {
                     //Get an image from the camera
@@ -165,7 +165,7 @@ int main() {
                 cv::moveWindow(final_window, 650, 0);
 
                 // Make the trackers
-                Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE);
+                Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE,RESIZE_FACTOR);
                 Moving_object_tracker feature_tracker(400, 10, 10, 0.3, RESIZE_FACTOR);
 
                 bool trained_color_models = false;
