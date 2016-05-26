@@ -47,10 +47,10 @@ public:
     void otsu(cv::Mat mahalanobis_image, cv::Mat& mask);
 
     // Methods for setting parameters
-    void increaseCloseIterations();
-    void decreaseCloseIterations();
-    void increaseCloseSize();
-    void decreaseCloseSize();
+    void increaseRefinementIterations();
+    void decreaseRefinementIterations();
+    void increaseRefinementKernelSize();
+    void decreaseRefinementKernelSize();
     void increaseMahalanobisDistance();
     void decreaseMahalanobisDistance();
 

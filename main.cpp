@@ -83,10 +83,10 @@ int main() {
                     }
 
                     if (key == 'g') color_tracker.retrain(); // Retrain the model
-                    if (key == 'w') color_tracker.increaseCloseIterations();
-                    if (key == 's') color_tracker.decreaseCloseIterations();
-                    if (key == 'e') color_tracker.increaseCloseSize();
-                    if (key == 'd') color_tracker.decreaseCloseSize();
+                    if (key == 'w') color_tracker.increaseRefinementIterations();
+                    if (key == 's') color_tracker.decreaseRefinementIterations();
+                    if (key == 'e') color_tracker.increaseRefinementKernelSize();
+                    if (key == 'd') color_tracker.decreaseRefinementKernelSize();
                     if (key == 'r') color_tracker.increaseMahalanobisDistance();
                     if (key == 'f') color_tracker.decreaseMahalanobisDistance();
 
@@ -216,10 +216,10 @@ int main() {
                         break;
                     }
 
-                    if (key == 'w') color_tracker.increaseCloseIterations();
-                    if (key == 's') color_tracker.decreaseCloseIterations();
-                    if (key == 'e') color_tracker.increaseCloseSize();
-                    if (key == 'd') color_tracker.decreaseCloseSize();
+                    if (key == 'w') color_tracker.increaseRefinementIterations();
+                    if (key == 's') color_tracker.decreaseRefinementIterations();
+                    if (key == 'e') color_tracker.increaseRefinementKernelSize();
+                    if (key == 'd') color_tracker.decreaseRefinementKernelSize();
                     if (key == 'r') color_tracker.increaseMahalanobisDistance();
                     if (key == 'f') color_tracker.decreaseMahalanobisDistance();
                     

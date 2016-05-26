@@ -3,7 +3,7 @@
 //
 #include "Color_model_object_tracker.h"
 
-Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR)  { 
+Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR)  {
     // Default values
     this->MAX_MAHALANOBIS_DISTANCE = MAX_MAHALANOBIS_DISTANCE;
     this->RESIZE_FACTOR = RESIZE_FACTOR;
@@ -239,21 +239,21 @@ cv::Mat Color_model_object_tracker::refineMask(cv::Mat mask) {
 }
 
 // These functions all simply alter a parameter of the model
-void Color_model_object_tracker::increaseCloseIterations() {
+void Color_model_object_tracker::increaseRefinementIterations() {
     refinement_iterations += 1;
 }
 
-void Color_model_object_tracker::decreaseCloseIterations() {
+void Color_model_object_tracker::decreaseRefinementIterations() {
     if(refinement_iterations > 1) {
         refinement_iterations -= 1;
     }
 }
 
-void Color_model_object_tracker::increaseCloseSize() {
+void Color_model_object_tracker::increaseRefinementKernelSize() {
     refinement_size += 1;
 }
 
-void Color_model_object_tracker::decreaseCloseSize() {
+void Color_model_object_tracker::decreaseRefinementKernelSize() {
     if(refinement_size > 1) {
         refinement_size -= 1;
     }
