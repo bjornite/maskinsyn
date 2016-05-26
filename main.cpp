@@ -5,7 +5,6 @@
 // Higher value = less pixels (faster)
 const int RESIZE_FACTOR = 1;
 
-
 //Change this parameter to switch between the different object trackers
 int mode = 1; // car be: TEXTURE = 1 , FEATURE = 2
 
@@ -15,7 +14,7 @@ int nr_of_modes = 2;
 // The distance features must move per 1/FRAMERATE second to track
 // movement in percentage of the whole frame size
 const double MIN_MOVEMENT_THRESHOLD = 1;
-double MAX_MAHALANOBIS_DISTANCE = 0.05; //Default value, can be changed manually or by the alorithm
+double MAX_MAHALANOBIS_DISTANCE = 0.05; //Default value for the color model
 
 // This factor multiplied with the mean movement vector length gives the euclidian distance threshold
 // for features to count as part of the tracked object
@@ -46,7 +45,7 @@ int main() {
 
 
     //Make the image classifier
-    Color_model_object_tracker img_seg_classifier = Color_model_object_tracker(
+    Color_model_object_tracker color_model_object_tracker = Color_model_object_tracker(
             MAX_MAHALANOBIS_DISTANCE);
 
     bool done;
@@ -62,11 +61,9 @@ int main() {
                     cap >> current_image;
 
                     //Classify image
-                    img_seg_classifier.segment(current_image, segmented_image);
-
+                    color_model_object_tracker.segment(current_image, segmented_image);
 
                     imshow(result_window, segmented_image);
-
 
                     //Keybindings for å kontrollere modellen
                     int key = cv::waitKey(30);
@@ -74,15 +71,15 @@ int main() {
                         done = true;
                         break;
                     }
-                    if (key == 'g') img_seg_classifier.retrain(); //Retrain the model
-                    if (key == 'w') img_seg_classifier.increaseCloseIterations();
-                    if (key == 's') img_seg_classifier.decreaseCloseIterations();
-                    if (key == 'e') img_seg_classifier.increaseCloseSize();
-                    if (key == 'd') img_seg_classifier.decreaseCloseSize();
-                    if (key == 'r') img_seg_classifier.increaseMahalanobisDistance();
-                    if (key == 'f') img_seg_classifier.decreaseMahalanobisDistance();
+                    if (key == 'g') color_model_object_tracker.retrain(); //Retrain the model
+                    if (key == 'w') color_model_object_tracker.increaseCloseIterations();
+                    if (key == 's') color_model_object_tracker.decreaseCloseIterations();
+                    if (key == 'e') color_model_object_tracker.increaseCloseSize();
+                    if (key == 'd') color_model_object_tracker.decreaseCloseSize();
+                    if (key == 'r') color_model_object_tracker.increaseMahalanobisDistance();
+                    if (key == 'f') color_model_object_tracker.decreaseMahalanobisDistance();
                     
-                    if (key == 'a') {
+                    if (key == 'a') { //Change to the other model
                         mode += 1;
                         break;
                     }
