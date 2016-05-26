@@ -3,7 +3,7 @@
 #include "Moving_object_tracker.h"
 
 // Higher value = less pixels (faster)
-const int RESIZE_FACTOR = 2;
+const int RESIZE_FACTOR = 1;
 int mode = 1; // car be: TEXTURE = 1 , FEATURE = 2
 int nr_of_modes = 2;
 
@@ -59,20 +59,24 @@ int main() {
                     //Classify image
                     img_seg_classifier.segment(current_image, segmented_image);
 
+
                     imshow(result_window, segmented_image);
 
+
+                    //Keybindings for å kontrollere modellen
                     int key = cv::waitKey(30);
-                    if (key == 'q') {
+                    if (key == 'q') { //quit
                         done = true;
                         break;
                     }
+                    if (key == 'g') img_seg_classifier.retrain(); //Retrain the model
                     if (key == 'w') img_seg_classifier.increaseCloseIterations();
                     if (key == 's') img_seg_classifier.decreaseCloseIterations();
                     if (key == 'e') img_seg_classifier.increaseCloseSize();
                     if (key == 'd') img_seg_classifier.decreaseCloseSize();
                     if (key == 'r') img_seg_classifier.increaseMahalanobisDistance();
                     if (key == 'f') img_seg_classifier.decreaseMahalanobisDistance();
-                    if (key == 'g') img_seg_classifier.retrain();
+                    
                     if (key == 'a') {
                         mode += 1;
                         break;

@@ -12,13 +12,16 @@
 class Image_segmentation_classifier {
 
 public:
+    //Constructor
     Image_segmentation_classifier(double MAX_MAHALANOBIS_DISTANCE);
 
-   // static cv::Ptr<Image_segmentation_classifier> create();
+    //Standard method, returns a thresholded image using the model. Generates the model if necessary.
     void segment(cv::Mat image, cv::Mat& dst_image);
 
     // Takes a CV_64FC3 image
     void train(cv::Mat samples);
+
+    void retrain();
 
     // Takes a CV_64FC3 image
     cv::Mat mahalanobis_distance_for_each_pixel(cv::Mat image_lab_64);
@@ -26,28 +29,36 @@ public:
     //Takes a CV_8U mask with all values either 0 or 255
     cv::Mat refineMask(cv::Mat mask);
 
+    void calculateObjectPosition(cv::Mat mask);
+
+    //Drawing methods
+    void drawInfo(cv::Mat& image);
     void drawMask(cv::Mat image, cv::Mat mask);
 
-    void calculateObjectPosition(cv::Mat mask);
+    //Methods for getting parameters from the model
     cv::Point2d get_object_position();
     double get_confidence_value();
 
+    //These are no longer used, but are kept as reference
     void normalizeL(cv::Mat& image);
     void makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab);
+    cv::Mat make_mahalanobis_image(cv::Mat image_lab_64);
+    void otsu(cv::Mat mahalanobis_image, cv::Mat& mask);
 
 
-
+    //Methods for setting parameters
     void increaseCloseIterations();
     void decreaseCloseIterations();
     void increaseCloseSize();
     void decreaseCloseSize();
     void increaseMahalanobisDistance();
     void decreaseMahalanobisDistance();
-    void retrain();
+
 
 private:
     cv::Mat mean;
     cv::Mat covariance_matrix;
+    cv::Mat covariance_matrix_uchar;
     cv::Mat inv_covariance_matrix;
     double confidenceValue;
     cv::Point2d crossHairPosition;
