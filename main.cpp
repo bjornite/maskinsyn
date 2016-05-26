@@ -84,7 +84,6 @@ int main() {
                 }
                 break;
 
-
             case 2:
 
                 std::string feature_window = "Detected features";
@@ -99,7 +98,6 @@ int main() {
                 cv::namedWindow(result_window2);
                 cv::moveWindow(result_window2, 1300, 0);
 
-
                 cv::Mat raw_image, output_image;
                 Moving_object_tracker tracker(400, 10, 10, 0.3, 2);
 
@@ -108,8 +106,6 @@ int main() {
 
                     // Fetch video stream
                     cap >> raw_image;
-
-
                     cv::Mat feature_image, outputImage2;
 
                     tracker.track(raw_image, feature_image, output_image, outputImage2);
@@ -117,11 +113,11 @@ int main() {
                     imshow(feature_window, feature_image);
                     imshow(result_window, output_image);
                     imshow(result_window2, outputImage2);
-
-
+                
                     int key = cv::waitKey(30);
-                    if (key == 'q') { done = true; break;}
+                    if (key == 'q') {done = true; break;}
                     if (key == 'r') tracker.reset();
+                    if (key == 'w') tracker.wipe_rectangle_model();
                     if (key == 'a') {mode = 1; break;}
                 }
                 break;
