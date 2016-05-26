@@ -13,7 +13,7 @@ class Color_model_object_tracker {
 
 public:
     //Constructor
-    Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE);
+    Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR);
 
     //Standard method, returns a thresholded image using the model. Generates the model if necessary.
     void segment(cv::Mat image, cv::Mat& dst_image);
@@ -63,6 +63,7 @@ private:
     double confidenceValue;
     cv::Point2d crossHairPosition;
     double MAX_MAHALANOBIS_DISTANCE;
+    int RESIZE_FACTOR;
     int refinement_iterations;
     int refinement_size;
     bool trained;

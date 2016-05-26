@@ -3,8 +3,9 @@
 //
 #include "Color_model_object_tracker.h"
 
-Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE)  {
+Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR)  {
     this->MAX_MAHALANOBIS_DISTANCE = MAX_MAHALANOBIS_DISTANCE;
+    this->RESIZE_FACTOR = RESIZE_FACTOR;
     refinement_iterations = 1;
     refinement_size = 1;
     trained = false;
@@ -12,7 +13,7 @@ Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DI
 
 void Color_model_object_tracker::segment(cv::Mat image, cv::Mat& dst_image) {
 
-    cv::resize(image, image, cv::Size(320,240),0,0,cv::INTER_LINEAR);
+    cv::resize(image, image, cv::Size(640/RESIZE_FACTOR,480/RESIZE_FACTOR),0,0,cv::INTER_LINEAR);
 
     //Convert image to LAB color space and 64-bit float
     cv::Mat image_lab, image_lab_64,image_ab;
@@ -31,7 +32,7 @@ void Color_model_object_tracker::segment(cv::Mat image, cv::Mat& dst_image) {
     cv::Mat reference_rectangle;
 
     //cv::Rect myROI(280, 350, 80, 80);
-    cv::Rect myROI(140, 175, 40, 40);
+    cv::Rect myROI(280/RESIZE_FACTOR, 350/RESIZE_FACTOR, 80/RESIZE_FACTOR, 80/RESIZE_FACTOR);
 
     reference_rectangle = image_lab_64(myROI).clone();
 
@@ -84,7 +85,6 @@ void Color_model_object_tracker::drawInfo(cv::Mat& image) {
     cv::putText(image, text1, cv::Point(4, 15), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
     //cv::putText(image, text2, cv::Point(4, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
     //cv::putText(image, text3, cv::Point(4, 45), cv::FONT_HERSHEY_SIMPLEX, 0.5, 125, 1, cv::LINE_4);
-
 }
 
 //Randomizes the first channel of an image
@@ -253,8 +253,6 @@ cv::Mat Color_model_object_tracker::refineMask(cv::Mat mask) {
 void Color_model_object_tracker::retrain(){
     trained = false;
 }
-
-
 
 
 //These functions all simply alter a parameter of the model
