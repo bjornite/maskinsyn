@@ -2,18 +2,18 @@
 // Created by bjornivar on 19.05.16.
 //
 
-#ifndef MASKINSYN_IMAGE_SEGMENTATION_CLASSIFIER_H
-#define MASKINSYN_IMAGE_SEGMENTATION_CLASSIFIER_H
+#ifndef MASKINSYN_Color_model_object_tracker_H
+#define MASKINSYN_Color_model_object_tracker_H
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/xfeatures2d.hpp>
 #include <string.h>
 
-class Image_segmentation_classifier {
+class Color_model_object_tracker {
 
 public:
     //Constructor
-    Image_segmentation_classifier(double MAX_MAHALANOBIS_DISTANCE);
+    Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE);
 
     //Standard method, returns a thresholded image using the model. Generates the model if necessary.
     void segment(cv::Mat image, cv::Mat& dst_image);
@@ -70,4 +70,4 @@ private:
 };
 
 
-#endif //MASKINSYN_IMAGE_SEGMENTATION_CLASSIFIER_H
+#endif //MASKINSYN_Color_model_object_tracker_H

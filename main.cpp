@@ -1,10 +1,15 @@
 #include <iostream>
-#include "Image_segmentation_classifier.h"
+#include "Color_model_object_tracker.h"
 #include "Moving_object_tracker.h"
 
 // Higher value = less pixels (faster)
 const int RESIZE_FACTOR = 1;
+
+
+//Change this parameter to switch between the different object trackers
 int mode = 1; // car be: TEXTURE = 1 , FEATURE = 2
+
+
 int nr_of_modes = 2;
 
 // The distance features must move per 1/FRAMERATE second to track
@@ -41,7 +46,7 @@ int main() {
 
 
     //Make the image classifier
-    Image_segmentation_classifier img_seg_classifier = Image_segmentation_classifier(
+    Color_model_object_tracker img_seg_classifier = Color_model_object_tracker(
             MAX_MAHALANOBIS_DISTANCE);
 
     bool done;

@@ -1,16 +1,16 @@
 //
 // Created by bjornivar on 19.05.16.
 //
-#include "Image_segmentation_classifier.h"
+#include "Color_model_object_tracker.h"
 
-Image_segmentation_classifier::Image_segmentation_classifier(double MAX_MAHALANOBIS_DISTANCE)  {
+Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE)  {
     this->MAX_MAHALANOBIS_DISTANCE = MAX_MAHALANOBIS_DISTANCE;
     refinement_iterations = 1;
     refinement_size = 1;
     trained = false;
 }
 
-void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
+void Color_model_object_tracker::segment(cv::Mat image, cv::Mat& dst_image) {
 
     cv::resize(image, image, cv::Size(320,240),0,0,cv::INTER_LINEAR);
 
@@ -71,7 +71,7 @@ void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
 }
 
 //Puts some useful stats on the image
-void Image_segmentation_classifier::drawInfo(cv::Mat& image) {
+void Color_model_object_tracker::drawInfo(cv::Mat& image) {
 
     char text1[40];
     char text2[40];
@@ -88,22 +88,22 @@ void Image_segmentation_classifier::drawInfo(cv::Mat& image) {
 }
 
 //Randomizes the first channel of an image
-void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
+void Color_model_object_tracker::normalizeL(cv::Mat& image) {
     image.forEach<cv::Point3_<double>>([](cv::Point3_<double> &p, const int * position) -> void {
         p.x = sizeof(double) * rand();
     });
 }
 
-cv::Point2d Image_segmentation_classifier::get_object_position() {
+cv::Point2d Color_model_object_tracker::get_object_position() {
     return crossHairPosition;
 }
 
-double Image_segmentation_classifier::get_confidence_value() {
+double Color_model_object_tracker::get_confidence_value() {
     return confidenceValue;
 }
 
 //Removes all variation from the first channel of an image.
-void Image_segmentation_classifier::makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab) {
+void Color_model_object_tracker::makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab) {
 
     cv::Mat channels[3];
 
@@ -117,7 +117,7 @@ void Image_segmentation_classifier::makeABmatrix(cv::Mat& image_lab, cv::Mat& im
 
 //draws the mask onto the image by setting the middle channel of the image to 255
 //Assumes image is of type CV_8UC3
-void Image_segmentation_classifier::drawMask(cv::Mat image, cv::Mat mask) {
+void Color_model_object_tracker::drawMask(cv::Mat image, cv::Mat mask) {
 
     image.forEach<cv::Point3_<char>>([this,&mask,&image](cv::Point3_<char> &p, const int * position) -> void {
 
@@ -133,7 +133,7 @@ void Image_segmentation_classifier::drawMask(cv::Mat image, cv::Mat mask) {
 }
 
 //Calculates the mean position of the "true"(255) pixels in the mask
-void Image_segmentation_classifier::calculateObjectPosition(cv::Mat mask) {
+void Color_model_object_tracker::calculateObjectPosition(cv::Mat mask) {
 
     int x = 0;
     int y = 0;
@@ -172,7 +172,7 @@ void Image_segmentation_classifier::calculateObjectPosition(cv::Mat mask) {
 }
 
 //Creates a multivariate gaussian model of the pixel colors in the image
-void Image_segmentation_classifier::train(cv::Mat reference_rectangle) {
+void Color_model_object_tracker::train(cv::Mat reference_rectangle) {
 
     //normalizeL(reference_rectangle);
 
@@ -188,7 +188,7 @@ void Image_segmentation_classifier::train(cv::Mat reference_rectangle) {
 
 //Creates a mask from thresholding on the mahalanobis distance of each pixel
 //We set this up as a standalone method because we wanted to use a threshold of type double
-cv::Mat Image_segmentation_classifier::mahalanobis_distance_for_each_pixel(cv::Mat image_lab_64) {
+cv::Mat Color_model_object_tracker::mahalanobis_distance_for_each_pixel(cv::Mat image_lab_64) {
 
     cv::Mat mask = cv::Mat::zeros(image_lab_64.size(),CV_8U);
 
@@ -210,7 +210,7 @@ cv::Mat Image_segmentation_classifier::mahalanobis_distance_for_each_pixel(cv::M
 
 //Creates a cv::Mat with type CV_8U representing the mahalanobis distance for each pixel in the input image
 //Lower values in the returned image means the pixel is close to the model
-cv::Mat Image_segmentation_classifier::make_mahalanobis_image(cv::Mat image_lab_64) {
+cv::Mat Color_model_object_tracker::make_mahalanobis_image(cv::Mat image_lab_64) {
 
     cv::Mat mahalanobis_image = cv::Mat::zeros(image_lab_64.size(),CV_8U);
 
@@ -229,13 +229,13 @@ cv::Mat Image_segmentation_classifier::make_mahalanobis_image(cv::Mat image_lab_
 }
 
 //Thresholds the image using Otsus method.
-void Image_segmentation_classifier::otsu(cv::Mat mahalanobis_image, cv::Mat& mask) {
+void Color_model_object_tracker::otsu(cv::Mat mahalanobis_image, cv::Mat& mask) {
     cv::threshold(mahalanobis_image,mask,cv::THRESH_BINARY,255,cv::THRESH_OTSU);
 }
 
 
 //Refines the mask by opening and then closing to remove noise and give a smoother mask
-cv::Mat Image_segmentation_classifier::refineMask(cv::Mat mask) {
+cv::Mat Color_model_object_tracker::refineMask(cv::Mat mask) {
 
     cv::Mat opened_mask;
 
@@ -250,7 +250,7 @@ cv::Mat Image_segmentation_classifier::refineMask(cv::Mat mask) {
 }
 
 //The program will retrain the model the next time segment is called
-void Image_segmentation_classifier::retrain(){
+void Color_model_object_tracker::retrain(){
     trained = false;
 }
 
@@ -259,28 +259,28 @@ void Image_segmentation_classifier::retrain(){
 
 //These functions all simply alter a parameter of the model
 
-void Image_segmentation_classifier::increaseCloseIterations() {
+void Color_model_object_tracker::increaseCloseIterations() {
     refinement_iterations += 1;
 }
-void Image_segmentation_classifier::decreaseCloseIterations() {
+void Color_model_object_tracker::decreaseCloseIterations() {
     if(refinement_iterations > 1) {
         refinement_iterations -= 1;
     }
 }
 
-void Image_segmentation_classifier::increaseCloseSize() {
+void Color_model_object_tracker::increaseCloseSize() {
     refinement_size += 1;
 }
-void Image_segmentation_classifier::decreaseCloseSize() {
+void Color_model_object_tracker::decreaseCloseSize() {
     if(refinement_size > 1) {
         refinement_size -= 1;
     }
 }
 
-void Image_segmentation_classifier::increaseMahalanobisDistance() {
+void Color_model_object_tracker::increaseMahalanobisDistance() {
     MAX_MAHALANOBIS_DISTANCE += 0.001;
 }
-void Image_segmentation_classifier::decreaseMahalanobisDistance() {
+void Color_model_object_tracker::decreaseMahalanobisDistance() {
     if(MAX_MAHALANOBIS_DISTANCE > 0.001) {
         MAX_MAHALANOBIS_DISTANCE -= 0.001;
     }
