@@ -37,12 +37,12 @@ Systemet generer både en featurebeskrivelse og en fargemodell av det første ob
 
 Kontrollknapper:<br />
 q - avslutt programmet <br />
-g - reset<br />
-r - øk terskelen så modellen blir mer generell (default er 0.05)<br />
-f - senk terskelen så modellen blir mer spesifikk<br />
-e - øker størrelsen på kjernen som brukes til å lukke masken (default er 1)<br />
-d - senker størrelsen på kjernen som brukes til å lukke masken<br />
-w - øker antallet iterasjoner av lukking (default er 1)<br />
-s - senker antallet iterasjoner av lukking<br />
+g - reset begge modellene<br />
+r - øk terskelen så fargemodellen blir mer generell (default er 0.05)<br />
+f - senk terskelen så fargemodellen blir mer spesifikk<br />
+e - øker størrelsen på kjernen som brukes til å lukke masken i fargemodellen (default er 1)<br />
+d - senker størrelsen på kjernen som brukes til å lukke masken i fargemodellen<br />
+w - øker antallet iterasjoner av lukking i fargemodellen(default er 1)<br />
+s - senker antallet iterasjoner av lukking i fargemodellen<br />
 a - gå til mode 1 <br />
 
