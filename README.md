@@ -6,43 +6,29 @@ Vi har laget et system som tracker et objekt.
 
 Systemet har 3 ulike moduser, man velger modus ved å endre mode-verdien i main.cpp
 
-###Mode = 1: Featurematching
-
-Systemet generer en featurebeskrivelse av det første objektet som beveger seg i bildet etter at systemet starter.
-
-Kontrollknapper: <br />
-q - avslutt programmet <br />
-g - reset <br />
-w - slett rektangelmodellen <br />
-a - gå til neste mode <br />
-
-###Mode = 2: Fargematching
-
-Systemet genererer en multivariat gaussmodell av fargefordelingen i en firkant midt i nedre halvdel av bildet.
-
-Kontrollknapper:<br />
+###Kontrollknapper
 q - avslutt programmet <br />
 g - reset<br />
-r - øk terskelen så modellen blir mer generell (default er 0.05)<br />
-f - senk terskelen så modellen blir mer spesifikk<br />
-e - øker størrelsen på kjernen som brukes til å lukke masken (default er 1)<br />
-d - senker størrelsen på kjernen som brukes til å lukke masken<br />
-w - øker antallet iterasjoner av lukking (default er 1)<br />
-s - senker antallet iterasjoner av lukking<br />
-a - gå til neste mode <br />
-
-###Mode = 3: En kombinasjon av featurematching og fargematching
-
-Systemet generer både en featurebeskrivelse og en fargemodell av det første objektet som beveger seg i bildet etter at systemet starter.
-
-Kontrollknapper:<br />
-q - avslutt programmet <br />
-g - reset begge modellene<br />
+x - slett rektangelmodellen til featurematcheren <br />
 r - øk terskelen så fargemodellen blir mer generell (default er 0.05)<br />
 f - senk terskelen så fargemodellen blir mer spesifikk<br />
 e - øker størrelsen på kjernen som brukes til å lukke masken i fargemodellen (default er 1)<br />
 d - senker størrelsen på kjernen som brukes til å lukke masken i fargemodellen<br />
 w - øker antallet iterasjoner av lukking i fargemodellen(default er 1)<br />
 s - senker antallet iterasjoner av lukking i fargemodellen<br />
-a - gå til mode 1 <br />
+a - endre mode <br />
+
+###Mode = 1: Featurematching
+
+Systemet generer en featurebeskrivelse av det første objektet som beveger seg i bildet etter at systemet starter.
+
+###Mode = 2: Fargematching
+
+Systemet genererer en multivariat gaussmodell av fargefordelingen i en firkant midt i nedre halvdel av bildet.
+
+###Mode = 3: En kombinasjon av featurematching og fargematching
+
+Systemet generer både en featurebeskrivelse og en fargemodell av det første objektet som beveger seg i bildet etter at systemet starter.
+
+
 
