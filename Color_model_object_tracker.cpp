@@ -95,7 +95,10 @@ void Color_model_object_tracker::normalizeL(cv::Mat& image) {
 }
 
 cv::Point2d Color_model_object_tracker::get_object_position() {
-    return crossHairPosition;
+    cv::Point2d point;
+    point.x = crossHairPosition.x*2;
+    point.y = crossHairPosition.y*2;
+    return point;
 }
 
 double Color_model_object_tracker::get_confidence_value() {
@@ -159,10 +162,10 @@ void Color_model_object_tracker::calculateObjectPosition(cv::Mat mask) {
         sumOfStdDeviations += sqrt(abs(covariance_matrix.at<char>(i,i)));
     }
 
-    //100 turned out to be a suitable number
+    // 100 turned out to be a suitable number
     confidenceValue = ((1 - (sumOfStdDeviations / 100)) * (1 - ((double)counter/(double)(mask.size[0]*mask.size[1]))));
 
-    //Hacky way of making sure the confidencevalue is within its bounds
+    // Hacky way of making sure the confidencevalue is within its bounds
     if (confidenceValue < 0) {
         confidenceValue = 0;
     } else if (confidenceValue > 1) {
@@ -233,7 +236,6 @@ void Color_model_object_tracker::otsu(cv::Mat mahalanobis_image, cv::Mat& mask) 
     cv::threshold(mahalanobis_image,mask,cv::THRESH_BINARY,255,cv::THRESH_OTSU);
 }
 
-
 //Refines the mask by opening and then closing to remove noise and give a smoother mask
 cv::Mat Color_model_object_tracker::refineMask(cv::Mat mask) {
 
@@ -254,12 +256,11 @@ void Color_model_object_tracker::retrain(){
     trained = false;
 }
 
-
 //These functions all simply alter a parameter of the model
-
 void Color_model_object_tracker::increaseCloseIterations() {
     refinement_iterations += 1;
 }
+
 void Color_model_object_tracker::decreaseCloseIterations() {
     if(refinement_iterations > 1) {
         refinement_iterations -= 1;
@@ -269,6 +270,7 @@ void Color_model_object_tracker::decreaseCloseIterations() {
 void Color_model_object_tracker::increaseCloseSize() {
     refinement_size += 1;
 }
+
 void Color_model_object_tracker::decreaseCloseSize() {
     if(refinement_size > 1) {
         refinement_size -= 1;
@@ -278,8 +280,9 @@ void Color_model_object_tracker::decreaseCloseSize() {
 void Color_model_object_tracker::increaseMahalanobisDistance() {
     MAX_MAHALANOBIS_DISTANCE += 0.001;
 }
+
 void Color_model_object_tracker::decreaseMahalanobisDistance() {
     if(MAX_MAHALANOBIS_DISTANCE > 0.001) {
         MAX_MAHALANOBIS_DISTANCE -= 0.001;
-    }
 }
+    }

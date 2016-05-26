@@ -42,8 +42,12 @@ class Moving_object_tracker {
     // Previous image pointer
     cv::Mat previous_image;
 
+    // Cropped image of the object
+    cv::Mat object_image;
+
     // Detector and descriptors
     cv::Ptr<cv::xfeatures2d::SURF> detector;
+
     vector<cv::KeyPoint> previous_keypoints;
     cv::Mat previous_descriptors;
 
@@ -187,6 +191,12 @@ public:
     double get_confidence_value ();
 
     cv::Point2i get_object_position ();
+
+    void set_object_image();
+
+    cv::Mat get_object_image_lab();
+
+    bool found_object ();
 };
 
 

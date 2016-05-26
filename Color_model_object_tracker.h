@@ -45,7 +45,6 @@ public:
     cv::Mat make_mahalanobis_image(cv::Mat image_lab_64);
     void otsu(cv::Mat mahalanobis_image, cv::Mat& mask);
 
-
     //Methods for setting parameters
     void increaseCloseIterations();
     void decreaseCloseIterations();
@@ -54,6 +53,7 @@ public:
     void increaseMahalanobisDistance();
     void decreaseMahalanobisDistance();
 
+    void setRectangle ();
 
 private:
     cv::Mat mean;
@@ -69,6 +69,5 @@ private:
     bool trained;
 
 };
-
 
 #endif //MASKINSYN_Color_model_object_tracker_H

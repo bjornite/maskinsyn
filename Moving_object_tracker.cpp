@@ -19,8 +19,8 @@ Moving_object_tracker::Moving_object_tracker (
     // Calculate resized image size
     resized_image_size = cv::Size(image_width / resize_factor, image_height / resize_factor);
 
-        // Initialize feature detector
-    detector = cv::xfeatures2d::SURF::create(max_keypoints);
+    // Initialize feature detector
+    detector = cv::xfeatures2d::SURF::create();
 
     crosshair_position = cv::Point2i(resized_image_size.width, resized_image_size.height);
     rectangle_center = crosshair_position;
@@ -83,8 +83,6 @@ double Moving_object_tracker::calculate_confidence_value ()
         confidence_value = pow((1 - crosshair_movement / image_diagonal), 4) - crosshair_movement_object_size_factor;
 
     if (confidence_value < 0) confidence_value = 0;
-
-    printf("%f ", crosshair_movement);
 }
 
 // Returns true if the point is within the object boundary rectangle
@@ -369,7 +367,6 @@ void Moving_object_tracker::refine_keypoints_mahalanobis (
 }
 
 
-
 // Updates crosshair position to be the mean of the given keypoints
 cv::Point2d Moving_object_tracker::calculate_crosshair_position (
         const vector<cv::KeyPoint> &keypoints)
@@ -499,8 +496,8 @@ void Moving_object_tracker::track(
                         vector<cv::KeyPoint> refined_moving_keypoints;
                         refine_keypoints_mahalanobis(moving_keypoints, refined_moving_keypoints);
 
-                        show_debug_images(current_keypoints, mk, moving_keypoints, refined_moving_keypoints,
-                                          current_image, mask, good_matches);
+                        //show_debug_images(current_keypoints, mk, moving_keypoints, refined_moving_keypoints,
+                        //                  current_image, mask, good_matches);
 
                         // Compute descriptors for the moving features. This can be optimized by looking them up.
                         // Currently computes these twice.
@@ -513,13 +510,16 @@ void Moving_object_tracker::track(
                         previous_rectangle_descriptors = current_descriptors;
                         previous_rectangle_keypoints = moving_keypoints;
 
-                        saved_object = true;
-
                         // Update rectangle position
                         update_object_boundary(object_boundary, refined_moving_keypoints);
                         rectangle_pt1 = cv::Point2d(object_boundary[0], object_boundary[2]); // x1, y1
                         rectangle_pt2 = cv::Point2d(object_boundary[1], object_boundary[3]); // x2, y2
                         rectangle_center = crosshair_position;
+
+                        // Save object image
+                        set_object_image();
+
+                        saved_object = true;
                     }
                 }
             }
@@ -640,7 +640,7 @@ void Moving_object_tracker::track(
                                 cv::Scalar(0, 0, 255), 1);
             }
 
-            printf("Normal matches: %d, Additional matches: %d\n", (int)good_object_matches.size(), new_object_descriptors.rows);
+            //printf("Normal matches: %d, Additional matches: %d\n", (int)good_object_matches.size(), new_object_descriptors.rows);
 
             // Update previous pointes
             previous_rectangle_keypoints = rectangle_keypoints;
@@ -664,7 +664,7 @@ void Moving_object_tracker::track(
     rectangle_center.x += x_dist_to_target/3;
     rectangle_center.y += y_dist_to_target/3;
 
-    printf("Confidence: %.2f ", confidence_value);
+    //printf("Feature confidence: %.2f ", confidence_value);
 
     rectangle_pt1 = cv::Point2d(rectangle_center.x - object_size[0]/2, rectangle_center.y - object_size[1]/2);
     rectangle_pt2 = cv::Point2d(rectangle_center.x + object_size[0]/2, rectangle_center.y + object_size[1]/2);
@@ -682,9 +682,9 @@ void Moving_object_tracker::track(
     cv::drawKeypoints(feature_image, current_keypoints, feature_image);
 
     // Resize images back to normal
-    resize(crosshair_image, output_image, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
-    resize(image2, output_image2, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
-    resize(feature_image, feature_image, cv::Size(image_width*2, image_height*2), 0, 0, cv::INTER_LINEAR);
+    resize(crosshair_image, output_image, cv::Size(image_width, image_height), 0, 0, cv::INTER_LINEAR);
+    resize(image2, output_image2, cv::Size(image_width, image_height), 0, 0, cv::INTER_LINEAR);
+    resize(feature_image, feature_image, cv::Size(image_width, image_height), 0, 0, cv::INTER_LINEAR);
 
     // Update previous pointers
     previous_image = current_image;
@@ -699,6 +699,9 @@ void Moving_object_tracker::reset()
 
     crosshair_position = cv::Point2i(0,0);
     rectangle_center = cv::Point2i(0,0);
+    rectangle_speed[0] = 0;
+    rectangle_speed[1] = 0;
+    object_image.release();
 
     saved_object = false;
 }
@@ -759,5 +762,36 @@ double Moving_object_tracker::get_confidence_value ()
 
 cv::Point2i Moving_object_tracker::get_object_position ()
 {
-    return rectangle_center;
+    cv::Point2d resized_point;
+    resized_point.x = rectangle_center.x * resize_factor;
+    resized_point.y = rectangle_center.y * resize_factor;
+
+    return resized_point;
+}
+
+void Moving_object_tracker::set_object_image ()
+{
+    cv::Rect2d rectangle;
+    rectangle.x = object_boundary[0];
+    rectangle.y = object_boundary[2];
+
+    rectangle.width = object_size[0];
+    rectangle.height = object_size[1];
+
+    object_image = crosshair_image(rectangle);
+}
+
+cv::Mat Moving_object_tracker::get_object_image_lab ()
+{
+    cv::Mat image_lab, image_lab_64;
+
+    cv::cvtColor(object_image, image_lab, CV_BGR2Lab);
+    image_lab.convertTo(image_lab_64, CV_64FC3);
+
+    return image_lab_64;
+}
+
+bool Moving_object_tracker::found_object ()
+{
+    return saved_object;
 }
