@@ -45,9 +45,11 @@ class Moving_object_tracker {
     // Cropped image of the object
     cv::Mat object_image;
 
-    // Detector and descriptors
+    // Detector and matcher
     cv::Ptr<cv::xfeatures2d::SURF> detector;
+    cv::BFMatcher matcher;
 
+    // Keypoints and descriptors (previous)
     vector<cv::KeyPoint> previous_keypoints;
     cv::Mat previous_descriptors;
 
@@ -118,6 +120,11 @@ public:
             const vector<char>& mask,
             cv::Mat& filtered_descriptors);
 
+    // Locates new rectangle matches and saves them to the rectangle model
+    void find_and_save_new_rectangle_matches (
+            const vector<cv::KeyPoint> &current_keypoints,
+            const cv::Mat &current_descriptors);
+
     bool point_is_within_rectangle (
             cv::Point2f);
 
@@ -171,6 +178,23 @@ public:
             cv::Mat& outputImage,
             cv::Mat& outputImage2);
 
+    // Tries to find a moving object and saves it if it does
+    void try_to_create_object_model (
+            const vector<cv::KeyPoint>& current_keypoints,
+            const cv::Mat& current_descriptors,
+            const vector<cv::KeyPoint>& previous_keypoints,
+            const cv::Mat& previous_descriptors,
+            const cv::Mat& current_image);
+
+    // Extracts moving keypoints and descriptors
+    void get_moving_keypoints_and_descriptors (
+            const vector<cv::KeyPoint>& current_keypoints,
+            const cv::Mat& current_descriptors,
+            const vector<cv::KeyPoint>& previous_keypoints,
+            const cv::Mat& previous_descriptors,
+            vector<cv::KeyPoint>& output_keypoints,
+            cv::Mat& output_descriptors);
+
     // Resets the object model
     void reset ();
 
@@ -194,8 +218,10 @@ public:
 
     void set_object_image();
 
+    // Extracts the rectangle image and converts it to 64-bit l*a*b
     cv::Mat get_object_image_lab();
 
+    // Returns true if an object is saved
     bool found_object ();
 };
 
