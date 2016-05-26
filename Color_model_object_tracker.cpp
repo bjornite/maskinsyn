@@ -84,7 +84,6 @@ void Color_model_object_tracker::drawInfo(cv::Mat& image) {
     cv::putText(image, text1, cv::Point(4, 15), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
     //cv::putText(image, text2, cv::Point(4, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, 125, 1, cv::LINE_4);
     //cv::putText(image, text3, cv::Point(4, 45), cv::FONT_HERSHEY_SIMPLEX, 0.5, 125, 1, cv::LINE_4);
-
 }
 
 //Randomizes the first channel of an image
@@ -165,12 +164,13 @@ void Color_model_object_tracker::calculateObjectPosition(cv::Mat mask) {
     // 100 turned out to be a suitable number
     confidenceValue = ((1 - (sumOfStdDeviations / 100)) * (1 - ((double)counter/(double)(mask.size[0]*mask.size[1]))));
 
-    //Hacky way of making sure the confidence value is within its bounds
+    // Hacky way of making sure the confidencevalue is within its bounds
     if (confidenceValue < 0) {
         confidenceValue = 0;
     } else if (confidenceValue > 1) {
         confidenceValue = 1;
     }
+    printf("%.5f\n",confidenceValue);
 }
 
 //Creates a multivariate gaussian model of the pixel colors in the image
@@ -255,10 +255,11 @@ void Color_model_object_tracker::retrain(){
     trained = false;
 }
 
-//These methods all simply alter a parameter of the model
+//These functions all simply alter a parameter of the model
 void Color_model_object_tracker::increaseCloseIterations() {
     refinement_iterations += 1;
 }
+
 void Color_model_object_tracker::decreaseCloseIterations() {
     if(refinement_iterations > 1) {
         refinement_iterations -= 1;
@@ -268,6 +269,7 @@ void Color_model_object_tracker::decreaseCloseIterations() {
 void Color_model_object_tracker::increaseCloseSize() {
     refinement_size += 1;
 }
+
 void Color_model_object_tracker::decreaseCloseSize() {
     if(refinement_size > 1) {
         refinement_size -= 1;
@@ -277,8 +279,9 @@ void Color_model_object_tracker::decreaseCloseSize() {
 void Color_model_object_tracker::increaseMahalanobisDistance() {
     MAX_MAHALANOBIS_DISTANCE += 0.001;
 }
+
 void Color_model_object_tracker::decreaseMahalanobisDistance() {
     if(MAX_MAHALANOBIS_DISTANCE > 0.001) {
         MAX_MAHALANOBIS_DISTANCE -= 0.001;
-    }
 }
+    }

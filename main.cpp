@@ -77,7 +77,7 @@ int main() {
 
                     //Keybindings for å kontrollere modellen
                     int key = cv::waitKey(30);
-                    if (key == 'q') {
+                    if (key == 'q') { //quit
                         done = true;
                         break;
                     }
@@ -89,7 +89,7 @@ int main() {
                     if (key == 'd') color_tracker.decreaseCloseSize();
                     if (key == 'r') color_tracker.increaseMahalanobisDistance();
                     if (key == 'f') color_tracker.decreaseMahalanobisDistance();
-                    
+
                     if (key == 'a') { //Change to the other model
                         mode++;
                         break;

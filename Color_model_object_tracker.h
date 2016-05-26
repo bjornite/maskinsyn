@@ -53,7 +53,6 @@ public:
     void increaseMahalanobisDistance();
     void decreaseMahalanobisDistance();
 
-
     void setRectangle ();
 
 private:
@@ -69,6 +68,5 @@ private:
     bool trained;
 
 };
-
 
 #endif //MASKINSYN_Color_model_object_tracker_H
