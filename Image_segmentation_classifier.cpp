@@ -81,7 +81,6 @@ void Image_segmentation_classifier::segment(cv::Mat image, cv::Mat& dst_image) {
 
 }
 
-
 void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
     image.forEach<cv::Point3_<double>>([](cv::Point3_<double> &p, const int * position) -> void {
         p.x = sizeof(double) * rand();
@@ -89,7 +88,10 @@ void Image_segmentation_classifier::normalizeL(cv::Mat& image) {
 }
 
 cv::Point2d Image_segmentation_classifier::get_object_position() {
-    return crossHairPosition;
+    cv::Point2d point;
+    point.x = crossHairPosition.x*2;
+    point.y = crossHairPosition.y*2;
+    return point;
 }
 
 double Image_segmentation_classifier::get_confidence_value() {
@@ -151,7 +153,6 @@ void Image_segmentation_classifier::calculateObjectPosition(cv::Mat mask) {
     }
 
     confidenceValue = pow(1 - (sumOfVariances / 15000000),2);
-    printf("%.4f\n",confidenceValue);
 
     if (counter > mask.size[0]*mask.size[1] / 3) {
         confidenceValue -= 0.3;

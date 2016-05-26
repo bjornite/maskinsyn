@@ -36,7 +36,6 @@ public:
     void makeABmatrix(cv::Mat& image_lab, cv::Mat& image_ab);
 
 
-
     void increaseCloseIterations();
     void decreaseCloseIterations();
     void increaseCloseSize();
@@ -44,6 +43,8 @@ public:
     void increaseMahalanobisDistance();
     void decreaseMahalanobisDistance();
     void retrain();
+
+    void setRectangle ();
 
 private:
     cv::Mat mean;
