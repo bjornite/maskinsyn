@@ -3,7 +3,7 @@
 //
 #include "Color_model_object_tracker.h"
 
-Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR)  {
+Color_model_object_tracker::Color_model_object_tracker(double MAX_MAHALANOBIS_DISTANCE, int RESIZE_FACTOR)  { 
     // Default values
     this->MAX_MAHALANOBIS_DISTANCE = MAX_MAHALANOBIS_DISTANCE;
     this->RESIZE_FACTOR = RESIZE_FACTOR;
