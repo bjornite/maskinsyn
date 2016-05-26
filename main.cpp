@@ -140,7 +140,7 @@ int main() {
                     }
 
                     if (key == 'g') feature_tracker.reset();
-                    if (key == 'w') feature_tracker.wipe_rectangle_model();
+                    if (key == 'x') feature_tracker.wipe_rectangle_model();
 
                     if (key == 'a') {
                         mode++;
@@ -222,7 +222,8 @@ int main() {
                     if (key == 'd') color_tracker.decreaseRefinementKernelSize();
                     if (key == 'r') color_tracker.increaseMahalanobisDistance();
                     if (key == 'f') color_tracker.decreaseMahalanobisDistance();
-                    
+
+                    if (key == 'x') feature_tracker.wipe_rectangle_model();
                     if (key == 'g') {
                         trained_color_models = false;
                         feature_tracker.reset();
