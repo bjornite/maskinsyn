@@ -55,8 +55,8 @@ int main() {
     while(!done) {
 
         switch (mode) {
-            case 1: {
 
+            case 1: {
                 // Main window
                 std::string result_window;
                 cv::namedWindow(result_window);
