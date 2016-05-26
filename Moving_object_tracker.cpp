@@ -496,8 +496,8 @@ void Moving_object_tracker::track(
                         vector<cv::KeyPoint> refined_moving_keypoints;
                         refine_keypoints_mahalanobis(moving_keypoints, refined_moving_keypoints);
 
-                        show_debug_images(current_keypoints, mk, moving_keypoints, refined_moving_keypoints,
-                                          current_image, mask, good_matches);
+                        //show_debug_images(current_keypoints, mk, moving_keypoints, refined_moving_keypoints,
+                        //                  current_image, mask, good_matches);
 
                         // Compute descriptors for the moving features. This can be optimized by looking them up.
                         // Currently computes these twice.
