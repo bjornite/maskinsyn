@@ -150,13 +150,12 @@ void Color_model_object_tracker::calculateConfidenceValue(int nrOfPointsWithinMo
 
     confidenceValue = stdDeviationConfidence * maskSizeRatio;
 
-    // Hacky way of making sure the confidencevalue is within its bounds
+    // Hacky way of making sure the confidence value is within its bounds
     if (confidenceValue < 0) {
         confidenceValue = 0;
     } else if (confidenceValue > 1) {
         confidenceValue = 1;
     }
-    printf("%.5f\n",confidenceValue);
 }
 
 // Creates a multivariate gaussian model of the pixel colors in the image

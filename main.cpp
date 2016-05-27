@@ -161,8 +161,8 @@ int main() {
                 cv::namedWindow(final_window);
 
                 cv::moveWindow(feature_window, 0, 0);
-                cv::moveWindow(color_model_window, 1300, 0);
-                cv::moveWindow(final_window, 650, 0);
+                cv::moveWindow(color_model_window, 1900, 0);
+                cv::moveWindow(final_window, 1000, 0);
 
                 // Make the trackers
                 Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE,RESIZE_FACTOR);
@@ -202,12 +202,13 @@ int main() {
                     cv::Point2d crosshair_position = interpolate_points(color_model_crosshair_pos, color_model_confidence,
                                                                         feature_crosshair_pos, feature_confidence);
 
+                    //Show the final image with weighted crosshair
                     raw_image.copyTo(final_image);
                     cv::drawMarker(final_image, crosshair_position, cv::Scalar::all(255));
                     cv::resize(final_image, final_image, cv::Size(640*2, 480*2));
                     imshow(final_window, final_image);
 
-                    printf("Feature confidence: %.2f, Texture confidence: %.2f\n",
+                    printf("Feature confidence: %.2f, color confidence: %.2f\n",
                            feature_tracker.get_confidence_value(), color_tracker.get_confidence_value());
 
                     int key = cv::waitKey(30);

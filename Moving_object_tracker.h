@@ -71,6 +71,7 @@ class Moving_object_tracker {
 
     // The model of the object
     bool saved_object = false;
+    vector<cv::KeyPoint> saved_object_keypoints;
     cv::Mat saved_object_descriptors;
 
     // Additional descriptors
@@ -120,6 +121,13 @@ public:
             const vector<char>& mask,
             cv::Mat& filtered_descriptors);
 
+    void filter_keypoints_and_descriptors (
+            const vector<cv::KeyPoint>& input_keypoints,
+            const cv::Mat& input_descriptors,
+            const vector<char>& mask,
+            vector<cv::KeyPoint>& output_keypoints,
+            cv::Mat& output_descriptors);
+
     // Locates new rectangle matches and saves them to the rectangle model
     void find_and_save_new_rectangle_matches (
             const vector<cv::KeyPoint> &current_keypoints,
@@ -159,13 +167,8 @@ public:
             const cv::Mat& image_descriptors,
             vector<cv::KeyPoint>& rectangle_keypoints,
             cv::Mat& rectangle_descriptors);
-
-    // Removes keypoints not within mahalanobis distance
-    void refine_keypoints_mahalanobis (
-            const vector<cv::KeyPoint>& keypoints,
-            vector<cv::KeyPoint>& output_keypoints);
-
-    cv::Point2d calculate_crosshair_position (
+    
+    void update_crosshair_position(
             const vector<cv::KeyPoint> &keypoints);
 
     void update_object_boundary (
