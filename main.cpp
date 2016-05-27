@@ -1,6 +1,6 @@
 #include <iostream>
 #include "Color_model_object_tracker.h"
-#include "Moving_object_tracker.h"
+#include "Feature_tracker.h"
 
 // Higher value = less pixels (faster)
 const int RESIZE_FACTOR = 2;
@@ -114,7 +114,7 @@ int main() {
 
                 cv::Mat raw_image, output_image;
 
-                Moving_object_tracker feature_tracker(400, 10, 10, 0.3, RESIZE_FACTOR);
+                Feature_tracker feature_tracker(400, 10, 10, 0.3, RESIZE_FACTOR);
 
                 // Main loop
                 while (true) {
@@ -166,7 +166,7 @@ int main() {
 
                 // Make the trackers
                 Color_model_object_tracker color_tracker(MAX_MAHALANOBIS_DISTANCE,RESIZE_FACTOR);
-                Moving_object_tracker feature_tracker(400, 10, 10, 0.3, RESIZE_FACTOR);
+                Feature_tracker feature_tracker(400, 10, 10, 0.3, RESIZE_FACTOR);
 
                 bool trained_color_models = false;
 

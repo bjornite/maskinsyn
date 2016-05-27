@@ -11,7 +11,7 @@
 
 using namespace std;
 
-class Moving_object_tracker {
+class Feature_tracker {
     // Higher value = less pixels (faster)
     int resize_factor;
 
@@ -36,8 +36,6 @@ class Moving_object_tracker {
 
     // x1, x2, y1, y2
     int object_boundary[4];
-
-    cv::Point2d drawn_mean_vector;
 
     // Previous image pointer
     cv::Mat previous_image;
@@ -76,13 +74,13 @@ class Moving_object_tracker {
 
     // Additional descriptors
     int next_descriptor_to_overwrite = 0;
-    cv::Mat new_object_descriptors;
+    cv::Mat additional_object_descriptors;
 
     // Object size, x, y in pixels
     int object_size[2];
 
 public:
-    Moving_object_tracker (
+    Feature_tracker (
             int max_keypoints = 400,
             int minimum_matching_features = 10,
             int minimum_moving_features = 10,
@@ -167,7 +165,7 @@ public:
             const cv::Mat& image_descriptors,
             vector<cv::KeyPoint>& rectangle_keypoints,
             cv::Mat& rectangle_descriptors);
-    
+
     void update_crosshair_position(
             const vector<cv::KeyPoint> &keypoints);
 
@@ -197,6 +195,9 @@ public:
             const cv::Mat& previous_descriptors,
             vector<cv::KeyPoint>& output_keypoints,
             cv::Mat& output_descriptors);
+
+    // Updates the rectangle position with the movement controller
+    void update_rectangle_position ();
 
     // Resets the object model
     void reset ();

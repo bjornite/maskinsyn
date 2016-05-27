@@ -2,10 +2,10 @@
 // Created by mathiact on 5/15/16.
 //
 
-#include "Moving_object_tracker.h"
+#include "Feature_tracker.h"
 
 // Constructor
-Moving_object_tracker::Moving_object_tracker (
+Feature_tracker::Feature_tracker (
         int max_keypoints,
         int minimum_matching_features,
         int minimum_moving_features,
@@ -28,7 +28,7 @@ Moving_object_tracker::Moving_object_tracker (
     rectangle_center = crosshair_position;
 }
 
-vector<cv::DMatch> Moving_object_tracker::extract_good_ratio_matches (
+vector<cv::DMatch> Feature_tracker::extract_good_ratio_matches (
         const vector<vector<cv::DMatch>>& matches,
         double max_ratio)
 {
@@ -44,7 +44,7 @@ vector<cv::DMatch> Moving_object_tracker::extract_good_ratio_matches (
 }
 
 // Extracts matched points from matches into keypts1 and 2
-void Moving_object_tracker::extract_matching_points (
+void Feature_tracker::extract_matching_points (
         const vector<cv::KeyPoint>& keypts1,
         const vector<cv::KeyPoint>& keypts2,
         const vector<cv::DMatch>& matches,
@@ -60,7 +60,7 @@ void Moving_object_tracker::extract_matching_points (
 }
 
 // Returns the euclidian distance between two points in 2D-space
-float Moving_object_tracker::euclidian_distance (
+float Feature_tracker::euclidian_distance (
         cv::Point2f pt1,
         cv::Point2f pt2)
 {
@@ -68,7 +68,7 @@ float Moving_object_tracker::euclidian_distance (
 }
 
 // Calculates the confidence value given crosshair movement and the object size
-double Moving_object_tracker::calculate_confidence_value ()
+double Feature_tracker::calculate_confidence_value ()
 {
     double image_diagonal = sqrt(pow((double)resized_image_size.width, 2) + pow((double)resized_image_size.height, 2));
     double crosshair_movement = euclidian_distance(crosshair_position, previous_crosshair_position);
@@ -83,7 +83,7 @@ double Moving_object_tracker::calculate_confidence_value ()
 }
 
 // Returns true if the point is within the object boundary rectangle
-bool Moving_object_tracker::point_is_within_rectangle (
+bool Feature_tracker::point_is_within_rectangle (
         cv::Point2f point)
 {
     return point.x > object_boundary[0] &&
@@ -95,7 +95,7 @@ bool Moving_object_tracker::point_is_within_rectangle (
 // Fills a binary mask given the distance between matching points
 // min_pixel_movement_percentage is the distance a feature must move per 1/FRAMERATE second
 // to be counted as a moving feature. Given in percentage of the whole frame width.
-void Moving_object_tracker::mask_stationary_features (
+void Feature_tracker::mask_stationary_features (
         const vector<cv::Point2f>& matched_pts1,
         const vector<cv::Point2f>& matched_pts2,
         vector<char>& mask,
@@ -111,7 +111,7 @@ void Moving_object_tracker::mask_stationary_features (
 }
 
 // Updates a binary mask by removing hipsters (points moving differently from the mean)
-void Moving_object_tracker::mask_false_moving_features (
+void Feature_tracker::mask_false_moving_features (
         const vector<cv::Point2f>& matched_pts1,
         const vector<cv::Point2f>& matched_pts2,
         vector<char>& mask)
@@ -134,7 +134,6 @@ void Moving_object_tracker::mask_false_moving_features (
     direction[1] /= unmasked_cnt;
 
     cv::Point2d mean_vector(direction[0], direction[1]);
-    drawn_mean_vector = mean_vector;
 
     // Find minimum allowed euclidian distance from the mean vector
     float mean_vector_length = sqrt(pow(direction[0], 2) + pow(direction[1], 2));
@@ -161,7 +160,7 @@ void Moving_object_tracker::mask_false_moving_features (
 }
 
 // Masks matches and returns a vector with the matches corresponding to true-entries in the mask
-void Moving_object_tracker::get_unmasked_keypoints (
+void Feature_tracker::get_unmasked_keypoints (
         const vector<cv::DMatch>& matches,
         const vector<char>& mask,
         const vector<cv::KeyPoint>& keypoints,
@@ -180,7 +179,7 @@ void Moving_object_tracker::get_unmasked_keypoints (
 }
 
 // Extracts true-entries corresponding to the mask
-void Moving_object_tracker::filter_keypoints (
+void Feature_tracker::filter_keypoints (
         const vector<cv::KeyPoint>& keypoints,
         const vector<char>& mask,
         vector<cv::KeyPoint>& filtered_keypoints)
@@ -196,7 +195,7 @@ void Moving_object_tracker::filter_keypoints (
 }
 
 // Extracts true-entries corresponding to the mask
-void Moving_object_tracker::filter_descriptors (
+void Feature_tracker::filter_descriptors (
         const cv::Mat& descriptors,
         const vector<char>& mask,
         cv::Mat& filtered_descriptors)
@@ -212,7 +211,7 @@ void Moving_object_tracker::filter_descriptors (
 }
 
 // Extracts true-entries corresponding to the mask
-void Moving_object_tracker::filter_keypoints_and_descriptors (
+void Feature_tracker::filter_keypoints_and_descriptors (
         const vector<cv::KeyPoint>& input_keypoints,
         const cv::Mat& input_descriptors,
         const vector<char>& mask,
@@ -265,7 +264,7 @@ void get_unmasked_descriptors (
 }
 
 // Extracts all matching keypoints
-void Moving_object_tracker::get_matching_keypoints (
+void Feature_tracker::get_matching_keypoints (
         const vector<cv::DMatch>& matches,
         const vector<cv::KeyPoint>& keypoints,
         vector<cv::KeyPoint>& matching_keypoints)
@@ -277,7 +276,7 @@ void Moving_object_tracker::get_matching_keypoints (
 
 // Adds new keypoints within the rectangle to the model
 // (Overwrites old)
-void Moving_object_tracker::add_new_keypoints_to_model (
+void Feature_tracker::add_new_keypoints_to_model (
         const vector<cv::KeyPoint> &keypoints,
         const cv::Mat &descriptors)
 {
@@ -287,23 +286,23 @@ void Moving_object_tracker::add_new_keypoints_to_model (
         cv::Mat descriptor_row = descriptors.row(i);
 
         // Only save 1000 descriptors
-        if (new_object_descriptors.rows < 1000) {
-            new_object_descriptors.push_back(descriptor_row);
+        if (additional_object_descriptors.rows < 1000) {
+            additional_object_descriptors.push_back(descriptor_row);
         }
 
         // Overwrite the correct row with the new descriptor
         else {
             // Reset next_descriptor_to_overwrite if it is out of bounds
-            if (next_descriptor_to_overwrite >= new_object_descriptors.rows) {
+            if (next_descriptor_to_overwrite >= additional_object_descriptors.rows) {
                 next_descriptor_to_overwrite = 0;
             }
-            descriptor_row.copyTo(new_object_descriptors.row(next_descriptor_to_overwrite++));
+            descriptor_row.copyTo(additional_object_descriptors.row(next_descriptor_to_overwrite++));
         }
     }
 }
 
 // Extract keypoints and their descriptors within the rectangle
-void Moving_object_tracker::get_rectangle_keypoints_and_descriptors (
+void Feature_tracker::get_rectangle_keypoints_and_descriptors (
         const vector<cv::KeyPoint>& image_keypoints,
         const cv::Mat& image_descriptors,
         vector<cv::KeyPoint>& rectangle_keypoints,
@@ -321,7 +320,7 @@ void Moving_object_tracker::get_rectangle_keypoints_and_descriptors (
 }
 
 // Creates vector mask, each index is marked true if the corresponding keypoint is within the mahalanobis distance
-void Moving_object_tracker::create_mahalanobis_mask (
+void Feature_tracker::create_mahalanobis_mask (
         const vector<cv::KeyPoint>& keypoints,
         vector<char>& mask)
 {
@@ -351,7 +350,7 @@ void Moving_object_tracker::create_mahalanobis_mask (
 }
 
 // Locates new rectangle matches and saves them to the rectangle model
-void Moving_object_tracker::find_and_save_new_rectangle_matches (
+void Feature_tracker::find_and_save_new_rectangle_matches (
         const vector<cv::KeyPoint> &current_keypoints,
         const cv::Mat &current_descriptors)
 {
@@ -412,7 +411,7 @@ void Moving_object_tracker::find_and_save_new_rectangle_matches (
 }
 
 // Updates crosshair position to be the mean of the given keypoints
-void Moving_object_tracker::update_crosshair_position(
+void Feature_tracker::update_crosshair_position(
         const vector<cv::KeyPoint> &keypoints)
 {
     double mean_x = 0;
@@ -431,7 +430,7 @@ void Moving_object_tracker::update_crosshair_position(
 }
 
 // Updates the object boundary (rectangle) and size
-void Moving_object_tracker::update_object_boundary (
+void Feature_tracker::update_object_boundary (
         int object_boundary[],
         vector<cv::KeyPoint>& keyPoints)
 {
@@ -463,7 +462,7 @@ void Moving_object_tracker::update_object_boundary (
     object_size[1] = maxY - minY;
 }
 
-void Moving_object_tracker::track(
+void Feature_tracker::track (
         cv::Mat& input_image,
         cv::Mat& feature_image,
         cv::Mat& output_image,
@@ -502,71 +501,56 @@ void Moving_object_tracker::track(
         else
         {
             // Look for saved features in the image
-            vector<vector<cv::DMatch>> object_matches, additional_matches, rectangle_matches;
+            vector<vector<cv::DMatch>> object_matches, additional_matches;
 
-            // Look for object matches
+            // Look for object matches with the original model
             matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches, 2);
             vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches, 0.5);
 
-            // Find matches with the original model
+            // Extract the matching keypoints
             vector<cv::KeyPoint> matching_keypoints;
             get_matching_keypoints(good_object_matches, current_keypoints, matching_keypoints);
 
-
-            // RECTANGLE *************************************************************************************
-            // Find new keypoints in the rectangle and save them to the non-original model
-            Moving_object_tracker::find_and_save_new_rectangle_matches(current_keypoints, current_descriptors);
-
-            // Look for additional matches in the non-original model
+            // Look for additional matches in the additional model (rectangle)
             vector<cv::KeyPoint> additional_matching_keypoints;
-            if (!new_object_descriptors.empty()) {
-                matcher.knnMatch(current_descriptors, new_object_descriptors, additional_matches, 2);
+            if (!additional_object_descriptors.empty()) {
+                matcher.knnMatch(current_descriptors, additional_object_descriptors, additional_matches, 2);
             }
             vector<cv::DMatch> additional_good_matches = extract_good_ratio_matches(additional_matches, 0.5);
             get_matching_keypoints(additional_good_matches, current_keypoints, additional_matching_keypoints);
 
-
-            // Add matches from the rectangle model to all matches if there are some
+            // Add matches from the additional model to all matches if there are some
             vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
-            if (! additional_matching_keypoints.empty())
-                all_matching_keypoints.insert(all_matching_keypoints.end(), additional_matching_keypoints.begin(), additional_matching_keypoints.end());
+            if (!additional_matching_keypoints.empty())
+                all_matching_keypoints.insert(all_matching_keypoints.end(),
+                                              additional_matching_keypoints.begin(),
+                                              additional_matching_keypoints.end());
+
+            // Find new keypoints in the rectangle and save them to the additional object model
+            Feature_tracker::find_and_save_new_rectangle_matches(current_keypoints, current_descriptors);
 
             // Update crosshair position and confidence_value
             // Set rectangle position to crosshair position if we have 20% of original keypoints
             if (good_object_matches.size() >= saved_object_descriptors.rows*0.2) {
                 confidence_value = 0.8 + 0.2*(good_object_matches.size() / (double)saved_object_descriptors.rows);
                 update_crosshair_position(matching_keypoints);
-
-                rectangle_center.x = crosshair_position.x;
-                rectangle_center.y = crosshair_position.y;
-                rectangle_speed[0] = 0;
-                rectangle_speed[1] = 0;
-            } else {
+            }
+            else {
                 if (all_matching_keypoints.size() > 0) {
                     update_crosshair_position(all_matching_keypoints);
-                    rectangle_center.x = crosshair_position.x;
-                    rectangle_center.y = crosshair_position.y;
 
                     calculate_confidence_value();
                 } else
                     confidence_value = 0;
             }
 
+            // Update rectangle position
+            rectangle_center.x = crosshair_position.x;
+            rectangle_center.y = crosshair_position.y;
+
             // Draw matched keypoints, model matches, additional matches
             cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image, cv::Scalar(0, 255, 0));
             cv::drawKeypoints(crosshair_image, additional_matching_keypoints, crosshair_image, cv::Scalar(0, 0, 255));
-
-            /*
-            // Draw movement arrow
-            if (rectangle_moving_keypoints.size() > 5) {
-                cv::arrowedLine(crosshair_image,
-                                cv::Point2d((image_width / resize_factor) / 2,
-                                            (image_height / resize_factor) / 2),
-                                cv::Point2d((image_width / resize_factor) / 2 + drawn_mean_vector.x,
-                                            (image_height / resize_factor) / 2 + drawn_mean_vector.y),
-                                cv::Scalar(0, 0, 255), 1);
-            }
-            */
         }
     }
     // We do not have previous descriptors
@@ -574,24 +558,7 @@ void Moving_object_tracker::track(
         confidence_value = 0;
     }
 
-    // Update rectangle position
-    float x_dist_to_target = (float) (crosshair_position.x - rectangle_center.x);
-    float y_dist_to_target = (float) (crosshair_position.y - rectangle_center.y);
-
-    rectangle_speed[0] += x_dist_to_target/5;
-    rectangle_speed[1] += y_dist_to_target/5;
-
-    //rectangle_center.x += rectangle_speed[0];
-    //rectangle_center.y += rectangle_speed[1];
-    rectangle_center.x += x_dist_to_target/3;
-    rectangle_center.y += y_dist_to_target/3;
-
-    rectangle_pt1 = cv::Point2d(rectangle_center.x - object_size[0]/2, rectangle_center.y - object_size[1]/2);
-    rectangle_pt2 = cv::Point2d(rectangle_center.x + object_size[0]/2, rectangle_center.y + object_size[1]/2);
-
-    // Reduce rectangle speed due to drag
-    rectangle_speed[0] *= 0.99;
-    rectangle_speed[1] *= 0.99;
+    update_rectangle_position();
 
     // Draw crosshair and rectangle
     cv::drawMarker(crosshair_image, crosshair_position, cv::Scalar::all(255), cv::MARKER_CROSS, 100, 1, 8);
@@ -613,7 +580,7 @@ void Moving_object_tracker::track(
     previous_crosshair_position = crosshair_position;
 }
 
-void Moving_object_tracker::reset()
+void Feature_tracker::reset()
 {
     printf("Resetting model..\n");
 
@@ -622,12 +589,13 @@ void Moving_object_tracker::reset()
     rectangle_speed[0] = 0;
     rectangle_speed[1] = 0;
     object_image.release();
+    confidence_value = 0;
 
     saved_object = false;
 }
 
 // TODO DEBUG/imshow
-void Moving_object_tracker::show_debug_images (
+void Feature_tracker::show_debug_images (
         const vector<cv::KeyPoint>& current_keypoints,
         const vector<cv::KeyPoint>& mk,
         const vector<cv::KeyPoint>& moving_keypoints,
@@ -668,7 +636,7 @@ void Moving_object_tracker::show_debug_images (
 }
 
 // Tries to find a moving object and saves it if it does
-void Moving_object_tracker::try_to_create_object_model (
+void Feature_tracker::try_to_create_object_model (
         const vector<cv::KeyPoint>& current_keypoints,
         const cv::Mat& current_descriptors,
         const vector<cv::KeyPoint>& previous_keypoints,
@@ -701,7 +669,7 @@ void Moving_object_tracker::try_to_create_object_model (
 }
 
 // Extracts moving keypoints and descriptors
-void Moving_object_tracker::get_moving_keypoints_and_descriptors (
+void Feature_tracker::get_moving_keypoints_and_descriptors (
         const vector<cv::KeyPoint>& current_keypoints,
         const cv::Mat& current_descriptors,
         const vector<cv::KeyPoint>& previous_keypoints,
@@ -750,19 +718,19 @@ void Moving_object_tracker::get_moving_keypoints_and_descriptors (
 }
 
 // Wipes the additional saved keypoints
-void Moving_object_tracker::wipe_rectangle_model ()
+void Feature_tracker::wipe_rectangle_model ()
 {
-    new_object_descriptors.release();
+    additional_object_descriptors.release();
 }
 
 // Returns the current confidence value
-double Moving_object_tracker::get_confidence_value ()
+double Feature_tracker::get_confidence_value ()
 {
     return confidence_value;
 }
 
 
-cv::Point2i Moving_object_tracker::get_object_position ()
+cv::Point2i Feature_tracker::get_object_position ()
 {
     cv::Point2d resized_point;
     resized_point.x = rectangle_center.x * resize_factor;
@@ -771,7 +739,7 @@ cv::Point2i Moving_object_tracker::get_object_position ()
     return resized_point;
 }
 
-void Moving_object_tracker::set_object_image ()
+void Feature_tracker::set_object_image ()
 {
     cv::Rect2d rectangle;
     rectangle.x = object_boundary[0];
@@ -798,7 +766,7 @@ void Moving_object_tracker::set_object_image ()
 }
 
 // Extracts the rectangle image and converts it to 64-bit l*a*b
-cv::Mat Moving_object_tracker::get_object_image_lab ()
+cv::Mat Feature_tracker::get_object_image_lab ()
 {
     cv::Mat image_lab, image_lab_64;
 
@@ -808,8 +776,31 @@ cv::Mat Moving_object_tracker::get_object_image_lab ()
     return image_lab_64;
 }
 
+// Updates the rectangle position with the movement controller
+void Feature_tracker::update_rectangle_position ()
+{
+    // Update rectangle position
+    float x_dist_to_target = (float) (crosshair_position.x - rectangle_center.x);
+    float y_dist_to_target = (float) (crosshair_position.y - rectangle_center.y);
+
+    rectangle_speed[0] += x_dist_to_target/5;
+    rectangle_speed[1] += y_dist_to_target/5;
+
+    //rectangle_center.x += rectangle_speed[0];
+    //rectangle_center.y += rectangle_speed[1];
+    rectangle_center.x += x_dist_to_target/3;
+    rectangle_center.y += y_dist_to_target/3;
+
+    rectangle_pt1 = cv::Point2d(rectangle_center.x - object_size[0]/2, rectangle_center.y - object_size[1]/2);
+    rectangle_pt2 = cv::Point2d(rectangle_center.x + object_size[0]/2, rectangle_center.y + object_size[1]/2);
+
+    // Reduce rectangle speed due to drag
+    rectangle_speed[0] *= 0.99;
+    rectangle_speed[1] *= 0.99;
+}
+
 // Returns true if an object is saved
-bool Moving_object_tracker::found_object ()
+bool Feature_tracker::found_object ()
 {
     return saved_object;
 }
