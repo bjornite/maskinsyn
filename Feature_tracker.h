@@ -57,11 +57,17 @@ class Feature_tracker {
     cv::Point2i previous_crosshair_position;
 
     // Set up rectangle
-    cv::Point2d rectangle_pt1, rectangle_pt2;
+    cv::Point2i rectangle_center;
+    cv::Point2i rectangle_pt1, rectangle_pt2;
 
-    // Rectangle component speed
-    cv::Point2f rectangle_center;
-    int rectangle_speed[2];
+    // Rectangle position PID control variables
+    float rectangle_speed[2];
+    float PID_previous_error[2];
+    float PID_integral[2] = {0, 0};
+    float PID_kP = 0.25;        // Proportional gain
+    float PID_kI = 0.4;         // Integral gain
+    float PID_kD = 0;           // Derivative gain
+    float PID_dT = 1.f/5;        // Assuming the framerate is constant 5 FPS
 
     // Previous rectangle keypoints and descriptors
     vector<cv::KeyPoint> previous_rectangle_keypoints;
@@ -222,6 +228,8 @@ public:
             const vector<char>& mask,
             const vector<cv::DMatch>& matches);
 
+
+    void tune_pid (char commmand);
 
     // Wipes the additional saved keypoints
     void wipe_rectangle_model ();

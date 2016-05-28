@@ -24,7 +24,7 @@ Feature_tracker::Feature_tracker (
     matcher = {detector->defaultNorm()};
 
     // Set crosshair to center
-    crosshair_position = cv::Point2i(resized_image_size.width, resized_image_size.height);
+    crosshair_position = cv::Point2i(resized_image_size.width/2, resized_image_size.height/2);
     rectangle_center = crosshair_position;
 }
 
@@ -548,10 +548,8 @@ void Feature_tracker::track (
             }
 
             // Update rectangle position
-            rectangle_center.x = crosshair_position.x;
-            rectangle_center.y = crosshair_position.y;
-
-            printf("Matching keypoints: %d\n", (int)matching_keypoints.size());
+            //rectangle_center.x = crosshair_position.x;
+            //rectangle_center.y = crosshair_position.y;
 
             // Draw matched keypoints, model matches green, additional matches red
             cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image, cv::Scalar(0, 255, 0));
@@ -595,7 +593,6 @@ void Feature_tracker::reset()
     rectangle_speed[1] = 0;
     object_image.release();
     confidence_value = 0;
-
     saved_object = false;
 }
 
@@ -781,27 +778,57 @@ cv::Mat Feature_tracker::get_object_image_lab ()
     return image_lab_64;
 }
 
+void Feature_tracker::tune_pid (char command)
+{
+    if (command == 'y') PID_kP += 0.1;
+    if (command == 'h') PID_kP -= 0.1;
+    if (command == 'u') PID_kI += 0.1;
+    if (command == 'j') PID_kI -= 0.1;
+    if (command == 'i') PID_kD += 0.01;
+    if (command == 'k') PID_kD -= 0.01;
+
+    printf("PID: %.2f, %.2f, %.2f\n", PID_kP, PID_kI, PID_kD);
+
+}
+
 // Updates the rectangle position with the movement controller
 void Feature_tracker::update_rectangle_position ()
 {
-    // Update rectangle position
-    float x_dist_to_target = (float) (crosshair_position.x - rectangle_center.x);
-    float y_dist_to_target = (float) (crosshair_position.y - rectangle_center.y);
+    // Output
+    float p_out[2];
+    float i_out[2];
+    float d_out[2];
 
-    rectangle_speed[0] += x_dist_to_target/5;
-    rectangle_speed[1] += y_dist_to_target/5;
+    // Calculate current error (distance to target)
+    float error[2];
+    error[0] = crosshair_position.x - rectangle_center.x;
+    error[1] = crosshair_position.y - rectangle_center.y;
+    p_out[0] = error[0];
+    p_out[1] = error[1];
 
-    //rectangle_center.x += rectangle_speed[0];
-    //rectangle_center.y += rectangle_speed[1];
-    rectangle_center.x += x_dist_to_target/3;
-    rectangle_center.y += y_dist_to_target/3;
+    // Calculate integral part
+    PID_integral[0] += error[0]*PID_dT;
+    PID_integral[1] += error[1]*PID_dT;
+    i_out[0] = PID_integral[0];
+    i_out[1] = PID_integral[1];
+
+    // Calculate derivative part
+    d_out[0] = (error[0] - PID_previous_error[0])/PID_dT;
+    d_out[1] = (error[1] - PID_previous_error[1])/PID_dT;
+
+    // Update previous error
+    PID_previous_error[0] = error[0];
+    PID_previous_error[1] = error[1];
+
+    // Set speed
+    rectangle_speed[0] = p_out[0]*PID_kP + i_out[0]*PID_kI + d_out[0]*PID_kD;
+    rectangle_speed[1] = p_out[1]*PID_kP + i_out[1]*PID_kI + d_out[1]*PID_kD;
+
+    rectangle_center.x += rectangle_speed[0];
+    rectangle_center.y += rectangle_speed[1];
 
     rectangle_pt1 = cv::Point2d(rectangle_center.x - object_size[0]/2, rectangle_center.y - object_size[1]/2);
     rectangle_pt2 = cv::Point2d(rectangle_center.x + object_size[0]/2, rectangle_center.y + object_size[1]/2);
-
-    // Reduce rectangle speed due to drag
-    rectangle_speed[0] *= 0.99;
-    rectangle_speed[1] *= 0.99;
 }
 
 // Returns true if an object is saved

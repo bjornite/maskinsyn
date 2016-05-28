@@ -3,10 +3,10 @@
 #include "Feature_tracker.h"
 
 // Higher value = less pixels (faster)
-const int RESIZE_FACTOR = 2;
+const int RESIZE_FACTOR = 3;
 
 //Change this parameter to switch between the different object trackers
-int mode = 3; // can be: TEXTURE = 1 , FEATURE = 2, MULTI = 3
+int mode = 2; // can be: COLOR = 1 , FEATURE = 2, MULTI = 3
 
 // The distance features must move per 1/FRAMERATE second to track movement in percentage of the whole frame size
 const double MIN_MOVEMENT_THRESHOLD = 1;
@@ -141,6 +141,14 @@ int main() {
 
                     if (key == 'g') feature_tracker.reset();
                     if (key == 'x') feature_tracker.wipe_rectangle_model();
+
+                    if (key == 'y') feature_tracker.tune_pid('y');
+                    if (key == 'h') feature_tracker.tune_pid('h');
+                    if (key == 'u') feature_tracker.tune_pid('u');
+                    if (key == 'j') feature_tracker.tune_pid('j');
+                    if (key == 'i') feature_tracker.tune_pid('i');
+                    if (key == 'k') feature_tracker.tune_pid('k');
+
 
                     if (key == 'a') {
                         mode++;
