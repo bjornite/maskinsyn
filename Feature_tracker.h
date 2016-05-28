@@ -151,6 +151,11 @@ public:
             const vector<cv::KeyPoint>& keypoints,
             vector<cv::KeyPoint>& unmasked_keypoints);
 
+    // Returns good matches
+    vector<cv::DMatch> get_matches (
+            const cv::Mat& descriptors_1,
+            const cv::Mat& descriptors_2);
+
     void get_matching_keypoints (
             const vector<cv::DMatch>& matches,
             const vector<cv::KeyPoint>& keypoints,
@@ -160,6 +165,11 @@ public:
             const vector<cv::KeyPoint>& keypoints,
             const cv::Mat &descriptors);
 
+    // Returns keypoints within the rectangle
+    vector<cv::KeyPoint> get_rectangle_keypoints (
+            const vector<cv::KeyPoint>& image_keypoints);
+
+    // Extract keypoints and their descriptors within the rectangle
     void get_rectangle_keypoints_and_descriptors (
             const vector<cv::KeyPoint>& image_keypoints,
             const cv::Mat& image_descriptors,

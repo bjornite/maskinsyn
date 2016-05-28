@@ -263,6 +263,17 @@ void get_unmasked_descriptors (
     }
 }
 
+// Returns good matches
+vector<cv::DMatch> Feature_tracker::get_matches (
+        const cv::Mat& descriptors_1,
+        const cv::Mat& descriptors_2)
+{
+    vector<vector<cv::DMatch>> object_matches;
+    matcher.knnMatch(descriptors_1, saved_object_descriptors, object_matches, 2);
+    return extract_good_ratio_matches(object_matches, 0.5);
+
+}
+
 // Extracts all matching keypoints
 void Feature_tracker::get_matching_keypoints (
         const vector<cv::DMatch>& matches,
@@ -300,6 +311,23 @@ void Feature_tracker::add_new_keypoints_to_model (
         }
     }
 }
+
+// Returns keypoints within the rectangle
+vector<cv::KeyPoint> Feature_tracker::get_rectangle_keypoints (
+        const vector<cv::KeyPoint>& image_keypoints)
+{
+    vector<cv::KeyPoint> rectangle_keypoints;
+
+    for (int i = 0; i < image_keypoints.size(); i++) {
+        cv::KeyPoint keypoint = image_keypoints.at(i);
+
+        if (point_is_within_rectangle(keypoint.pt)) {
+            rectangle_keypoints.push_back(keypoint);
+        }
+    }
+    return rectangle_keypoints;
+}
+
 
 // Extract keypoints and their descriptors within the rectangle
 void Feature_tracker::get_rectangle_keypoints_and_descriptors (
@@ -351,8 +379,8 @@ void Feature_tracker::create_mahalanobis_mask (
 
 // Locates new rectangle matches and saves them to the rectangle model
 void Feature_tracker::find_and_save_new_rectangle_matches (
-        const vector<cv::KeyPoint> &current_keypoints,
-        const cv::Mat &current_descriptors)
+        const vector<cv::KeyPoint>& current_keypoints,
+        const cv::Mat& current_descriptors)
 {
     // Get rectangle keypoints and descriptors
     vector<vector<cv::DMatch>> rectangle_matches;
@@ -363,46 +391,19 @@ void Feature_tracker::find_and_save_new_rectangle_matches (
 
     // Look for new rectangle matches (based on prev image)
     if (!previous_rectangle_keypoints.empty()) {
-        matcher.knnMatch(rectangle_descriptors, previous_rectangle_descriptors, rectangle_matches, 2);
-    }
-    vector<cv::DMatch> good_rectangle_matches = extract_good_ratio_matches(rectangle_matches, 0.5);
 
-    // Get the matching keypoints
-    vector<cv::KeyPoint> rectangle_matching_keypoints, rectangle_moving_keypoints;
-    get_matching_keypoints(good_rectangle_matches, rectangle_keypoints, rectangle_matching_keypoints);
+        // Get moving keypoints and descriptors
+        vector<cv::KeyPoint> moving_rectangle_keypoints;
+        cv::Mat moving_rectangle_descriptors;
+        get_moving_keypoints_and_descriptors(rectangle_keypoints, rectangle_descriptors, previous_rectangle_keypoints,
+                                             previous_rectangle_descriptors, moving_rectangle_keypoints, moving_rectangle_descriptors);
 
-    // Get rectangle keypoints that are moving
-    vector<char> mask;
-    vector<cv::Point2f> rect_points1; // Previous
-    vector<cv::Point2f> rect_points2; // Current
-    cv::Mat moving_rectangle_descriptors;
-
-    extract_matching_points(rectangle_keypoints, previous_rectangle_keypoints, good_rectangle_matches, rect_points2, rect_points1);
-
-    mask_stationary_features(rect_points1, rect_points2, mask, 0.5);
-    mask_false_moving_features(rect_points1, rect_points2, mask);
-    get_unmasked_keypoints(good_rectangle_matches, mask, rectangle_keypoints, rectangle_moving_keypoints);
-    get_unmasked_descriptors(good_rectangle_matches, mask, rectangle_descriptors, moving_rectangle_descriptors);
-
-    // Refine rectangle matches by removing features far from mean
-    vector<cv::KeyPoint> refined_rectangle_moving_keypoints;
-    cv::Mat refined_rectangle_moving_descriptors;
-    if (!rectangle_moving_keypoints.empty()) {
-        vector<char> mahalanobis_mask;
-        create_mahalanobis_mask(rectangle_moving_keypoints, mahalanobis_mask);
-
-        // Filtering out features far from the mean
-        filter_keypoints(rectangle_moving_keypoints, mahalanobis_mask, refined_rectangle_moving_keypoints);
-        filter_descriptors(moving_rectangle_descriptors, mahalanobis_mask,
-                           refined_rectangle_moving_descriptors);
-
-    }
-
-    // Add new keypoints that moved within the rectangle to the new_object_model
-    if (!refined_rectangle_moving_keypoints.empty()) {
-        add_new_keypoints_to_model(refined_rectangle_moving_keypoints, refined_rectangle_moving_descriptors);
-    } else {
-        add_new_keypoints_to_model(rectangle_moving_keypoints, moving_rectangle_descriptors);
+        // Add new keypoints that moved within the rectangle to the new_object_model
+        if (!moving_rectangle_keypoints.empty()) {
+            add_new_keypoints_to_model(moving_rectangle_keypoints, moving_rectangle_descriptors);
+        } else {
+            add_new_keypoints_to_model(moving_rectangle_keypoints, moving_rectangle_descriptors);
+        }
     }
 
     // Update previous pointes
@@ -496,16 +497,15 @@ void Feature_tracker::track (
 
         // Try to create model between previous and current image if we have no model
         if (!saved_object) {
-            try_to_create_object_model(current_keypoints, current_descriptors, previous_keypoints, previous_descriptors, current_image);
+            try_to_create_object_model(current_keypoints, current_descriptors, previous_keypoints, previous_descriptors,
+                                       current_image);
         }
-        else
-        {
+        else {
             // Look for saved features in the image
             vector<vector<cv::DMatch>> object_matches, additional_matches;
 
             // Look for object matches with the original model
-            matcher.knnMatch(current_descriptors, saved_object_descriptors, object_matches, 2);
-            vector<cv::DMatch> good_object_matches = extract_good_ratio_matches(object_matches, 0.5);
+            vector<cv::DMatch> good_object_matches = get_matches(current_descriptors, saved_object_descriptors);
 
             // Extract the matching keypoints
             vector<cv::KeyPoint> matching_keypoints;
@@ -519,6 +519,9 @@ void Feature_tracker::track (
             vector<cv::DMatch> additional_good_matches = extract_good_ratio_matches(additional_matches, 0.5);
             get_matching_keypoints(additional_good_matches, current_keypoints, additional_matching_keypoints);
 
+            // Get the matched keypoints within the rectangle
+            additional_matching_keypoints = get_rectangle_keypoints(additional_matching_keypoints);
+
             // Add matches from the additional model to all matches if there are some
             vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
             if (!additional_matching_keypoints.empty())
@@ -531,8 +534,8 @@ void Feature_tracker::track (
 
             // Update crosshair position and confidence_value
             // Set rectangle position to crosshair position if we have 20% of original keypoints
-            if (good_object_matches.size() >= saved_object_descriptors.rows*0.2) {
-                confidence_value = 0.8 + 0.2*(good_object_matches.size() / (double)saved_object_descriptors.rows);
+            if (good_object_matches.size() >= saved_object_descriptors.rows * 0.2) {
+                confidence_value = 0.8 + 0.2 * (good_object_matches.size() / (double) saved_object_descriptors.rows);
                 update_crosshair_position(matching_keypoints);
             }
             else {
@@ -548,12 +551,14 @@ void Feature_tracker::track (
             rectangle_center.x = crosshair_position.x;
             rectangle_center.y = crosshair_position.y;
 
-            // Draw matched keypoints, model matches, additional matches
+            printf("Matching keypoints: %d\n", (int)matching_keypoints.size());
+
+            // Draw matched keypoints, model matches green, additional matches red
             cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image, cv::Scalar(0, 255, 0));
             cv::drawKeypoints(crosshair_image, additional_matching_keypoints, crosshair_image, cv::Scalar(0, 0, 255));
         }
     }
-    // We do not have previous descriptors
+    // We do not have previous descriptors, we have no idea what we are tracking
     else {
         confidence_value = 0;
     }
