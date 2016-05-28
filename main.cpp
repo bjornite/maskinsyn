@@ -3,7 +3,7 @@
 #include "Feature_tracker.h"
 
 // Higher value = less pixels (faster)
-const int RESIZE_FACTOR = 3;
+const int RESIZE_FACTOR = 2;
 
 //Change this parameter to switch between the different object trackers
 int mode = 2; // can be: COLOR = 1 , FEATURE = 2, MULTI = 3

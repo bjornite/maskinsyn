@@ -325,6 +325,7 @@ vector<cv::KeyPoint> Feature_tracker::get_rectangle_keypoints (
             rectangle_keypoints.push_back(keypoint);
         }
     }
+
     return rectangle_keypoints;
 }
 
@@ -502,7 +503,7 @@ void Feature_tracker::track (
         }
         else {
             // Look for saved features in the image
-            vector<vector<cv::DMatch>> object_matches, additional_matches;
+            vector<vector<cv::DMatch>> additional_matches;
 
             // Look for object matches with the original model
             vector<cv::DMatch> good_object_matches = get_matches(current_descriptors, saved_object_descriptors);
@@ -522,12 +523,25 @@ void Feature_tracker::track (
             // Get the matched keypoints within the rectangle
             additional_matching_keypoints = get_rectangle_keypoints(additional_matching_keypoints);
 
+            // Filter both match results with mahalanobis distance
+            vector<char> mask;
+            vector<cv::KeyPoint> filtered_keypoints, filtered_additional_keypoints;
+
+            // Model matches
+            create_mahalanobis_mask(matching_keypoints, mask);
+            filter_keypoints(matching_keypoints, mask, filtered_keypoints);
+            mask.clear();
+
+            // Rectangle mathces
+            create_mahalanobis_mask(additional_matching_keypoints, mask);
+            filter_keypoints(additional_matching_keypoints, mask, filtered_additional_keypoints);
+
             // Add matches from the additional model to all matches if there are some
             vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
-            if (!additional_matching_keypoints.empty())
+            if (!filtered_additional_keypoints.empty())
                 all_matching_keypoints.insert(all_matching_keypoints.end(),
-                                              additional_matching_keypoints.begin(),
-                                              additional_matching_keypoints.end());
+                                              filtered_additional_keypoints.begin(),
+                                              filtered_additional_keypoints.end());
 
             // Find new keypoints in the rectangle and save them to the additional object model
             Feature_tracker::find_and_save_new_rectangle_matches(current_keypoints, current_descriptors);
