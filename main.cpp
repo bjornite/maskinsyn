@@ -6,7 +6,7 @@
 const int RESIZE_FACTOR = 2;
 
 //Change this parameter to switch between the different object trackers
-int mode = 2; // can be: COLOR = 1 , FEATURE = 2, MULTI = 3
+int mode = 3; // can be: COLOR = 1 , FEATURE = 2, MULTI = 3
 
 // The distance features must move per 1/FRAMERATE second to track movement in percentage of the whole frame size
 const double MIN_MOVEMENT_THRESHOLD = 1;

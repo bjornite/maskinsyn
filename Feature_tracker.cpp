@@ -433,7 +433,6 @@ void Feature_tracker::update_crosshair_position(
 
 // Updates the object boundary (rectangle) and size
 void Feature_tracker::update_object_boundary (
-        int object_boundary[],
         vector<cv::KeyPoint>& keyPoints)
 {
     // Find max, min keypoint in x and y
@@ -537,7 +536,7 @@ void Feature_tracker::track (
             filter_keypoints(additional_matching_keypoints, mask, filtered_additional_keypoints);
 
             // Add matches from the additional model to all matches if there are some
-            vector<cv::KeyPoint> all_matching_keypoints = matching_keypoints;
+            vector<cv::KeyPoint> all_matching_keypoints = filtered_keypoints;
             if (!filtered_additional_keypoints.empty())
                 all_matching_keypoints.insert(all_matching_keypoints.end(),
                                               filtered_additional_keypoints.begin(),
@@ -548,9 +547,9 @@ void Feature_tracker::track (
 
             // Update crosshair position and confidence_value
             // Set rectangle position to crosshair position if we have 20% of original keypoints
-            if (good_object_matches.size() >= saved_object_descriptors.rows * 0.2) {
+            if (filtered_keypoints.size() >= saved_object_keypoints.size() * 0.2) {
                 confidence_value = 0.8 + 0.2 * (good_object_matches.size() / (double) saved_object_descriptors.rows);
-                update_crosshair_position(matching_keypoints);
+                update_crosshair_position(filtered_keypoints);
             }
             else {
                 if (all_matching_keypoints.size() > 0) {
@@ -561,13 +560,9 @@ void Feature_tracker::track (
                     confidence_value = 0;
             }
 
-            // Update rectangle position
-            //rectangle_center.x = crosshair_position.x;
-            //rectangle_center.y = crosshair_position.y;
-
             // Draw matched keypoints, model matches green, additional matches red
-            cv::drawKeypoints(crosshair_image, matching_keypoints, crosshair_image, cv::Scalar(0, 255, 0));
-            cv::drawKeypoints(crosshair_image, additional_matching_keypoints, crosshair_image, cv::Scalar(0, 0, 255));
+            cv::drawKeypoints(crosshair_image, filtered_keypoints, crosshair_image, cv::Scalar(0, 255, 0));
+            cv::drawKeypoints(crosshair_image, additional_matching_keypoints, crosshair_image, cv::Scalar(0, 255, 255));
         }
     }
     // We do not have previous descriptors, we have no idea what we are tracking
@@ -672,7 +667,7 @@ void Feature_tracker::try_to_create_object_model (
         update_crosshair_position(moving_keypoints);
 
         // Update rectangle position
-        update_object_boundary(object_boundary, moving_keypoints);
+        update_object_boundary(moving_keypoints);
 
         // Save object image, descriptors and keypoints
         saved_object_keypoints = moving_keypoints;

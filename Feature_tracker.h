@@ -186,7 +186,6 @@ public:
             const vector<cv::KeyPoint> &keypoints);
 
     void update_object_boundary (
-            int object_boundary[],
             vector<cv::KeyPoint>& keyPoints);
 
     void track (

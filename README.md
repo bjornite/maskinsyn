@@ -20,11 +20,11 @@ a - endre mode <br />
 
 ###Mode = 1: Featurematching
 
-Systemet generer en featurebeskrivelse av det første objektet som beveger seg i bildet etter at systemet starter.
+Systemet genererer en multivariat gaussmodell av fargefordelingen i en firkant midt i nedre halvdel av bildet.
 
 ###Mode = 2: Fargematching
 
-Systemet genererer en multivariat gaussmodell av fargefordelingen i en firkant midt i nedre halvdel av bildet.
+Systemet generer en featurebeskrivelse av det første objektet som beveger seg i bildet etter at systemet starter. Ekte objektmatcher blir markert grønne, mens ekstra matcher den finner i rektangelet blir merket gule.
 
 ###Mode = 3: En kombinasjon av featurematching og fargematching
 
