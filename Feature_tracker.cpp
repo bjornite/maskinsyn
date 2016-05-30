@@ -776,12 +776,22 @@ void Feature_tracker::set_object_image ()
     cv::imshow(object_window, object_keypoints_image);
 }
 
-// Extracts the rectangle image and converts it to 64-bit l*a*b
+// Crops and extracts the rectangle image and converts it to 64-bit l*a*b
 cv::Mat Feature_tracker::get_object_image_lab ()
 {
-    cv::Mat image_lab, image_lab_64;
+    // Crop it to half the size, extract center
+    cv::Rect2d rectangle;
+    rectangle.width = object_image.cols/2;
+    rectangle.height = object_image.rows/2;
 
-    cv::cvtColor(object_image, image_lab, CV_BGR2Lab);
+    rectangle.x = object_image.cols/2 - rectangle.width/2;
+    rectangle.y = object_image.rows/2 - rectangle.height/2;
+
+    cv::Mat cropped_image = object_image(rectangle);
+
+    // Convert to l*a*b 64
+    cv::Mat image_lab, image_lab_64;
+    cv::cvtColor(cropped_image, image_lab, CV_BGR2Lab);
     image_lab.convertTo(image_lab_64, CV_64FC3);
 
     return image_lab_64;
